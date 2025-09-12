@@ -32,20 +32,29 @@ export default function PackageListFullDetails() {
 
   const fetchPackages = async () => {
     const { data, error } = await supabase.from("packages").select(`
-        id, name, category, type, active, created_at,cover_image_url,
-        route:routes(id, name, points),
-        vehicle:vehicles_model(id, model_name),
-        package_days(
-          id, day_number, vehicle_distance_km, vehicle_price, sightseeing_price, hotel_price,
-          package_day_points(
-            id,
-            point_id,
-            mode,
-            sightseeing:sightseeing_id(place_name),
-            hotel:hotel_id(hotel_name)
-          )
-        )
-      `);
+  id, name, category, type, active, created_at, cover_image_url,
+  route:routes(id, name, points),
+  package_vehicles (
+    vehicle:vehicle_id(id, model_name)
+  ),
+  package_days (
+    id, day_number, vehicle_distance_km, vehicle_price, sightseeing_price, hotel_price, description,
+    package_day_points (
+      id,
+      point_id,
+      mode,
+      sightseeing:sightseeing_id(id, place_name, fees_adult, fees_child),
+      hotel:hotel_id(id, hotel_name, manual_price)
+    ),
+    package_add_ons (
+      add_on:add_on_id(id, title, price)
+    )
+  ),
+  package_add_ons (
+    add_on:add_on_id(id, title, price)
+  )
+`);
+
     if (!error) setPackages(data || []);
   };
 
@@ -71,15 +80,15 @@ export default function PackageListFullDetails() {
   return (
     <>
       <Box sx={{ mb: 2, display: "flex", justifyContent: "space-between" }}>
-          <Typography variant="h5">All Packages</Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={() => navigate("/package")}
-          >
-            Add Package
-          </Button>
+        <Typography variant="h5">All Packages</Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={() => navigate("/package")}
+        >
+          Add Package
+        </Button>
       </Box>
       <TableContainer component={Paper}>
         <Table>
@@ -89,7 +98,7 @@ export default function PackageListFullDetails() {
               <TableCell>Category</TableCell>
               <TableCell>Type</TableCell>
               <TableCell>Route</TableCell>
-              <TableCell>Vehicle</TableCell>
+              {/* <TableCell>Vehicle</TableCell> */}
               <TableCell>Active</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
@@ -102,7 +111,7 @@ export default function PackageListFullDetails() {
                   <TableCell>{pkg.category}</TableCell>
                   <TableCell>{pkg.type}</TableCell>
                   <TableCell>{pkg.route?.name}</TableCell>
-                  <TableCell>{pkg.vehicle?.model_name}</TableCell>
+                  {/* <TableCell>{pkg.vehicle?.model_name}</TableCell> */}
                   <TableCell>
                     <Switch
                       checked={pkg.active}

@@ -19,6 +19,7 @@ import PartnerDocuments from "../Pages/PartnerDocuments";
 import DriverProfilesScreen from "../Pages/DriverProfilesScreen";
 import CustomerProfilesScreen from "../Pages/CustomerProfilesScreen";
 import BookingRequests from "../Pages/BookingRequests";
+import AddOnsManagement from "../Pages/AddOnsManagement";
 import { Navigate } from "react-router-dom";
 
 const routes = [
@@ -34,6 +35,7 @@ const routes = [
       { path: "trips", element: <Trips /> },
       { path: "routes", element: <RoutesManager /> },
       { path: "AllRoutes", element: <AllRoutesScreen /> },
+      { path: "Addons", element: <AddOnsManagement /> },
       { path: "vehicles", element: <VehicleForm /> },
       { path: "vehiclelist", element: <VehicleList /> },
       { path: "hotels", element: <HotelsAdminPanel /> },

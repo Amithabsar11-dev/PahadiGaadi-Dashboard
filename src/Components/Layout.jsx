@@ -25,6 +25,7 @@ const dashboardItems = [
   { title: "Vehicles", screen: "/vehiclelist" },
   { title: "Hotels", screen: "/hotels" },
   { title: "Sightseeing", screen: "/sightseeing" },
+  { title: "Addons", screen: "/Addons" },
   { title: "Packages", screen: "/packages" },
   { title: "Orders", screen: "/orders" },
   { title: "Trips", screen: "/trips" },
@@ -90,7 +91,10 @@ export default function Layout() {
 
   return (
     <Box sx={{ display: "flex" }}>
-      <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+      <AppBar
+        position="fixed"
+        sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
+      >
         <Toolbar sx={{ justifyContent: "space-between" }}>
           <Typography variant="h6" color="inherit" noWrap>
             Dashboard
@@ -102,7 +106,9 @@ export default function Layout() {
               color="inherit"
               onClick={handleMenuOpen}
               startIcon={
-                <Avatar sx={{ width: 32, height: 32, bgcolor: "secondary.main" }}>
+                <Avatar
+                  sx={{ width: 32, height: 32, bgcolor: "secondary.main" }}
+                >
                   {adminName ? adminName.charAt(0).toUpperCase() : "U"}
                 </Avatar>
               }
@@ -118,7 +124,9 @@ export default function Layout() {
               transformOrigin={{ vertical: "top", horizontal: "right" }}
             >
               <MenuItem disabled>
-                <Typography variant="subtitle1">{adminName || "Unnamed"}</Typography>
+                <Typography variant="subtitle1">
+                  {adminName || "Unnamed"}
+                </Typography>
               </MenuItem>
               <MenuItem disabled>
                 <Typography variant="body2" color="text.secondary">

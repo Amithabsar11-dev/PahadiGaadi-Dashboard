@@ -103,18 +103,38 @@ export default function AddTrip() {
     }
   }, [vehicleModelId, filteredVehicleModels, vehicles, numSourceSeats]);
 
-  async function fetchDrivers() {
-    const { data, error } = await supabase
-      .from("driver_profiles")
-      .select("id, name")
-      .order("name");
-    if (error) {
-      console.error("Error fetching drivers", error);
-      setDrivers([]);
-    } else {
-      setDrivers(data);
-    }
+async function fetchDrivers() {
+  const { data: verifiedDocs, error: docsError } = await supabase
+    .from("driver_documents")
+    .select("id")
+    .eq("is_verified", true);
+
+  if (docsError) {
+    console.error("Error fetching verified driver documents:", docsError);
+    setDrivers([]);
+    return;
   }
+
+  if (!verifiedDocs || verifiedDocs.length === 0) {
+    setDrivers([]);
+    return;
+  }
+
+  const verifiedDriverIds = verifiedDocs.map((doc) => doc.id);
+
+  const { data, error } = await supabase
+    .from("driver_profiles")
+    .select("id, name")
+    .in("id", verifiedDriverIds)
+    .order("name");
+
+  if (error) {
+    console.error("Error fetching verified drivers:", error);
+    setDrivers([]);
+  } else {
+    setDrivers(data);
+  }
+}
 
   async function fetchRoutes() {
     const { data, error } = await supabase

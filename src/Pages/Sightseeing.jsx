@@ -40,6 +40,8 @@ const WEEKDAYS = [
   "Sunday",
 ];
 
+const MODES = ["Trekking", "Darshan", "Aarthi", "Others"];
+
 function PlaceAutocompleteInput({ value, onPlaceSelected }) {
   const {
     ready,
@@ -305,12 +307,24 @@ export default function SightseeingPointsScreen() {
       new_equipment: "",
       new_not_allowed: "",
       gallery_urls: [],
+      mode: "",
+      custom_mode: "",
     });
     setSelectedFiles([]);
     setFormOpen(true);
   };
 
   const openEditForm = (point) => {
+    let mode = "";
+  let custom_mode = "";
+
+  if (MODES.includes(point.mode)) {
+    mode = point.mode;
+    custom_mode = "";
+  } else if (point.mode) {
+    mode = "Others";
+    custom_mode = point.mode;
+  }
     setEditPoint(point);
     setForm({
       place_name: point.place_name || "",
@@ -332,6 +346,8 @@ export default function SightseeingPointsScreen() {
       new_equipment: "",
       new_not_allowed: "",
       gallery_urls: dbImageToArray(point.image_url),
+     mode: mode,
+    custom_mode: custom_mode,
     });
     setSelectedFiles([]);
     setFormOpen(true);
@@ -374,6 +390,10 @@ export default function SightseeingPointsScreen() {
       contact_number: form.contact_number || null,
       notes: form.notes || null,
       image_url: arrayToDbImage(imageUrls),
+       mode:
+    form.mode === "Others"
+      ? form.custom_mode?.trim() || null
+      : form.mode || null,
     };
 
     // 4) Persist (update or insert)
@@ -555,6 +575,36 @@ export default function SightseeingPointsScreen() {
           </Box>
 
           {uploadingImage && <CircularProgress size={25} sx={{ mt: 1 }} />}
+
+          <TextField
+            select
+            // label="Mode"
+            value={form.mode || ""}
+            onChange={(e) => handleChange("mode", e.target.value)}
+            SelectProps={{ native: true }}
+            fullWidth
+            sx={{ mb: 2 }}
+          >
+            <option value="" disabled>
+             Select Mode
+            </option>
+            {MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {mode}
+              </option>
+            ))}
+          </TextField>
+
+          {/* Conditional input for custom mode */}
+          {form.mode === "Others" && (
+            <TextField
+              label="Enter custom mode"
+              value={form.custom_mode || ""}
+              onChange={(e) => handleChange("custom_mode", e.target.value)}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+          )}
 
           {/* Fees */}
           <Box sx={{ display: "flex", gap: 2, mt: 2, mb: 2 }}>

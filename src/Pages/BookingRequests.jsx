@@ -63,46 +63,86 @@ export default function BookingRequests() {
   }
 
   // Fetch drivers available for booking's route and departure date
-  async function fetchAvailableDriversForBooking(booking) {
-    const trip = trips.find((t) => t.id === booking.tripId);
-    if (!trip || !trip.routeId || !trip.departureTime) return [];
+async function fetchAvailableDriversForBooking(booking) {
+  if (!booking) return [];
 
-    const departureDate = new Date(trip.departureTime);
-    // Set UTC day start and end for filtering
-    const dayStart = new Date(departureDate);
-    dayStart.setUTCHours(0, 0, 0, 0);
-    const dayEnd = new Date(departureDate);
-    dayEnd.setUTCHours(23, 59, 59, 999);
+  // Parse bookingDate as UTC date without time component
+  const bookingDateUTC = new Date(booking.bookingDate + "T00:00:00Z");
+  const dayStart = new Date(bookingDateUTC);
+  const dayEnd = new Date(bookingDateUTC);
+  dayEnd.setUTCHours(23, 59, 59, 999);
 
-    // Query trips on same route and date with non-null userId (driver)
-    const { data, error } = await supabase
-      .from("trips")
-      .select("userId")
-      .eq("routeId", trip.routeId)
-      .gte("departureTime", dayStart.toISOString())
-      .lte("departureTime", dayEnd.toISOString())
-      .not("userId", "is", null);
+  // Find routeId from trip for that booking
+  const tripData = trips.find((t) => t.id === booking.tripId);
+  if (!tripData || !tripData.routeId) return [];
+  const routeId = tripData.routeId;
 
-    if (error) {
-      console.error("Error fetching drivers for booking:", error);
-      return [];
-    }
+  // Query trips on same route and date with a driver assigned (userId not null)
+  // Also calculate remaining seats by subtracting booked seats from total seats
+  // This requires a query with a join or post-processing
 
-    const driverIds = [...new Set(data.map((d) => d.userId))];
-    if (driverIds.length === 0) return [];
+  // Step 1: Get trips matching route, date, and driver assigned  
+  const { data: candidateTrips, error: tripError } = await supabase
+    .from("trips")
+    .select("id, userId, seat, departureTime")
+    .eq("routeId", routeId)
+    .gte("departureTime", dayStart.toISOString())
+    .lte("departureTime", dayEnd.toISOString())
+    .not("userId", "is", null);
 
-    // Fetch driver profiles by driverIds (userId)
-    const { data: driversData, error: driversError } = await supabase
-      .from("driver_profiles")
-      .select("id, name")
-      .in("id", driverIds);
-
-    if (driversError) {
-      console.error("Error fetching driver profiles:", driversError);
-      return [];
-    }
-    return driversData || [];
+  if (tripError || !candidateTrips) {
+    console.error("Error fetching candidate trips:", tripError);
+    return [];
   }
+  if (candidateTrips.length === 0) return [];
+
+  // Step 2: For each candidate trip, fetch total booked seats
+  const tripIds = candidateTrips.map((t) => t.id);
+
+  const { data: bookingSeats, error: bookingError } = await supabase
+    .from("bookings")
+    .select("tripId, noOfSeats")
+    .in("tripId", tripIds)
+    .in("bookingStatus", ["pending", "upcoming"]); // only count active bookings
+
+  if (bookingError) {
+    console.error("Error fetching booking seats:", bookingError);
+    return [];
+  }
+  
+  // Calculate seats booked per trip
+  const seatsBookedMap = {};
+  bookingSeats.forEach((b) => {
+    seatsBookedMap[b.tripId] = (seatsBookedMap[b.tripId] || 0) + b.noOfSeats;
+  });
+
+  // Step 3: Filter trips whose remaining seats >= booking.noOfSeats
+  const sufficientTrips = candidateTrips.filter((trip) => {
+    const bookedSeats = seatsBookedMap[trip.id] || 0;
+    const remainingSeats = trip.seat - bookedSeats;
+    return remainingSeats >= booking.noOfSeats;
+  });
+
+  if (sufficientTrips.length === 0) return [];
+
+  // Step 4: Extract unique driverIds from filtered trips
+  const driverIds = [...new Set(sufficientTrips.map((t) => t.userId))];
+  if (driverIds.length === 0) return [];
+
+  // Step 5: Fetch driver profiles by driverIds
+  const { data: driversData, error: driversError } = await supabase
+    .from("driver_profiles")
+    .select("id, name")
+    .in("id", driverIds);
+
+  if (driversError) {
+    console.error("Error fetching driver profiles:", driversError);
+    return [];
+  }
+
+  return driversData || [];
+}
+
 
   // Load available drivers per booking after bookings and trips are loaded
   useEffect(() => {
