@@ -18,6 +18,7 @@ import PartnerVerificationList from "../Pages/PartnerVerificationList";
 import PartnerDocuments from "../Pages/PartnerDocuments";
 import DriverProfilesScreen from "../Pages/DriverProfilesScreen";
 import CustomerProfilesScreen from "../Pages/CustomerProfilesScreen";
+import BookingRequests from "../Pages/BookingRequests";
 import { Navigate } from "react-router-dom";
 
 const routes = [
@@ -25,7 +26,7 @@ const routes = [
   { path: "/signin", element: <AdminSignIn /> },
   { path: "/signup", element: <AdminSignUp /> },
   {
-    path: "/", // Parent path for all routes under layout
+    path: "/", 
     element: <Layout />,
     children: [
       { path: "dashboard", element: <Dashboard /> },
@@ -41,6 +42,7 @@ const routes = [
       { path: "package", element: <PackageCreation /> },
       { path: "sightseeing", element: <Sightseeing /> },
       { path: "packages", element: <PackageListScreen /> },
+      { path: "bookingrequests", element: <BookingRequests /> },
       { path: "drivers", element: <DriverProfilesScreen /> },
       { path: "customers", element: <CustomerProfilesScreen /> },
       { path: "partner-verification", element: <PartnerVerificationList /> },

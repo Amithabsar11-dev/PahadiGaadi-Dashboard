@@ -28,6 +28,7 @@ const dashboardItems = [
   { title: "Packages", screen: "/packages" },
   { title: "Orders", screen: "/orders" },
   { title: "Trips", screen: "/trips" },
+  { title: "BookingRequests", screen: "/BookingRequests" },
   // { title: "Pricing", screen: "/pricing" },
   { title: "Partner Verification", screen: "/partner-verification" },
   { title: "Driver Profiles", screen: "/drivers" },

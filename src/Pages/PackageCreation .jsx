@@ -706,7 +706,7 @@ export default function PackageCreation() {
 
         if (dayPointsData.length) {
           const { error: pointsErr } = await supabase
-            .from("package_points")
+            .from("package_day_points")
             .insert(dayPointsData);
           if (pointsErr) throw pointsErr;
         }
