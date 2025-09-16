@@ -377,7 +377,7 @@ export default function PackageCreation() {
         const { data: see } = await supabase
           .from("sightseeing_points")
           .select()
-          .ilike("place_name", `%${searchKey}%`);
+          .eq("route_id", routeId);
         newDays[dayIdx].availableSightseeing[pt.id] = see || [];
       }
       if (!newDays[dayIdx].availableHotels[pt.id]) {
@@ -725,7 +725,7 @@ export default function PackageCreation() {
                 const { data: see } = await supabase
                   .from("sightseeing_points")
                   .select()
-                  .ilike("place_name", `%${searchKey}%`);
+                  .eq("route_id", routeId);
                 day.availableSightseeing[pt.id] = see || [];
               }
 
@@ -991,545 +991,612 @@ export default function PackageCreation() {
   };
 
   return (
-    <><Box sx={{ maxWidth: 1200, mx: "auto", my: 3 }}>
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h4" mb={2} color="primary">
-          Create Package
-        </Typography>
+    <>
+      <Box sx={{ maxWidth: 1200, mx: "auto", my: 3 }}>
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="h4" mb={2} color="primary">
+            Create Package
+          </Typography>
 
-        {/* Package Name Input */}
-        <TextField
-          label="Package Name"
-          value={packageName}
-          onChange={(e) => setPackageName(e.target.value)}
-          fullWidth
-          sx={{ mb: 3, maxWidth: 500 }}
-          disabled={loading} />
+          {/* Package Name Input */}
+          <TextField
+            label="Package Name"
+            value={packageName}
+            onChange={(e) => setPackageName(e.target.value)}
+            fullWidth
+            sx={{ mb: 3, maxWidth: 500 }}
+            disabled={loading}
+          />
 
-        <Box sx={{ mb: 3 }}>
-          <Button
-            variant="outlined"
-            component="label"
-            disabled={coverImages.length >= 5 || loading}
-          >
-            Upload Images (max 5)
-            <input
-              type="file"
-              hidden
-              multiple
-              accept="image/*"
-              onChange={(e) => {
-                if (e.target.files) {
-                  handleAddImages(e.target.files);
-                  e.target.value = null;
-                }
-              } }
-              disabled={loading} />
-          </Button>
-
-          <Box sx={{ mt: 2, display: "flex", flexWrap: "wrap", gap: 1 }}>
-            {coverImages.map((img, index) => (
-              <Box
-                key={index}
-                sx={{
-                  position: "relative",
-                  width: 120,
-                  height: 80,
-                  borderRadius: 1,
-                  overflow: "hidden",
+          <Box sx={{ mb: 3 }}>
+            <Button
+              variant="outlined"
+              component="label"
+              disabled={coverImages.length >= 5 || loading}
+            >
+              Upload Images (max 5)
+              <input
+                type="file"
+                hidden
+                multiple
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files) {
+                    handleAddImages(e.target.files);
+                    e.target.value = null;
+                  }
                 }}
-              >
-                <img
-                  src={img.url}
-                  alt={`cover_img_${index}`}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                <IconButton
-                  size="small"
-                  onClick={() => removeImage(index)}
+                disabled={loading}
+              />
+            </Button>
+
+            <Box sx={{ mt: 2, display: "flex", flexWrap: "wrap", gap: 1 }}>
+              {coverImages.map((img, index) => (
+                <Box
+                  key={index}
                   sx={{
-                    position: "absolute",
-                    top: 2,
-                    right: 2,
-                    bgcolor: "rgba(0,0,0,0.6)",
-                    color: "white",
-                    "&:hover": { bgcolor: "rgba(0,0,0,0.8)" },
+                    position: "relative",
+                    width: 120,
+                    height: 80,
+                    borderRadius: 1,
+                    overflow: "hidden",
                   }}
                 >
-                  <Close fontSize="small" />
-                </IconButton>
-              </Box>
-            ))}
+                  <img
+                    src={img.url}
+                    alt={`cover_img_${index}`}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={() => removeImage(index)}
+                    sx={{
+                      position: "absolute",
+                      top: 2,
+                      right: 2,
+                      bgcolor: "rgba(0,0,0,0.6)",
+                      color: "white",
+                      "&:hover": { bgcolor: "rgba(0,0,0,0.8)" },
+                    }}
+                  >
+                    <Close fontSize="small" />
+                  </IconButton>
+                </Box>
+              ))}
+            </Box>
           </Box>
-        </Box>
 
-        {/* Category & Type */}
-        <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
-          <FormControl sx={{ minWidth: 180 }}>
-            <InputLabel>Category</InputLabel>
-            <Select
-              value={category}
-              label="Category"
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              disabled={loading}
-            >
-              {PACKAGE_CATEGORIES.map((c) => (
-                <MenuItem key={c.value} value={c.value}>
-                  {c.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel>Type</InputLabel>
-            <Select
-              value={type}
-              label="Type"
-              onChange={(e) => handleTypeChange(e.target.value)}
-              disabled={loading}
-            >
-              {PACKAGE_TYPES.map((t) => (
-                <MenuItem key={t.value} value={t.value}>
-                  {t.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Box>
-
-        {/* Route */}
-        <FormControl sx={{ minWidth: 350, mb: 3 }}>
-          <InputLabel>Route</InputLabel>
-          <Select
-            value={routeId}
-            label="Route"
-            onChange={(e) => handleRouteSelect(e.target.value)}
-            disabled={loading}
-          >
-            {routes.map((r) => (
-              <MenuItem key={r.id} value={r.id}>
-                {r.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        {/* Vehicle */}
-        <FormControl fullWidth sx={{ mb: 3 }}>
-          <InputLabel>Vehicles</InputLabel>
-          <Select
-            multiple
-            value={selectedVehicles}
-            onChange={(e) => setSelectedVehicles(e.target.value)}
-            input={<OutlinedInput label="Vehicles" />}
-            renderValue={(selected) => (
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                {selected.map((id) => {
-                  const v = vehicles.find((veh) => veh.id === id);
-                  return v ? <Chip key={id} label={v.model_name} /> : null;
-                })}
-              </Box>
-            )}
-          >
-            {vehicles.map((v) => (
-              <MenuItem key={v.id} value={v.id}>
-                <Checkbox checked={selectedVehicles.indexOf(v.id) > -1} />
-                <ListItemText
-                  primary={`${v.model_name} (${v.seater_range || ""}) (${v.vehicle_category || ""})`} />
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <FormControl fullWidth sx={{ mb: 3 }}>
-          <InputLabel>Package Add-ons</InputLabel>
-          <Select
-            multiple
-            value={packageAddOns}
-            onChange={(e) => setPackageAddOns(e.target.value)}
-            input={<OutlinedInput label="Package Add-ons" />}
-            renderValue={(selected) => (
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                {selected.map((id) => {
-                  const a = availableAddOns.find((ao) => ao.id === id);
-                  return a ? <Chip key={id} label={a.title} /> : null;
-                })}
-              </Box>
-            )}
-          >
-            {availableAddOns.map((a) => (
-              <MenuItem key={a.id} value={a.id}>
-                <Checkbox checked={packageAddOns.indexOf(a.id) > -1} />
-                <ListItemText primary={`${a.title} (₹${a.price})`} />
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <Box sx={{ mt: 1 }}>
-          <Button
-            size="small"
-            variant="text"
-            onClick={() => setShowAddOnDialog(true)}
-            sx={{ textTransform: "none" }}
-          >
-            + Add Add-On
-          </Button>
-        </Box>
-
-        {/* Days */}
-        {days.map((day, dayIdx) => (
-          <Paper key={dayIdx} sx={{ p: 2, mb: 2, background: "#f8f9fd" }}>
-            <Typography variant="h6" gutterBottom>
-              Day {dayIdx + 1}
-            </Typography>
-            <TextField
-              label="Day Description"
-              value={days[dayIdx].description}
-              onChange={(e) => {
-                const newDays = [...days];
-                newDays[dayIdx].description = e.target.value;
-                setDays(newDays);
-              } }
-              fullWidth
-              multiline
-              rows={2}
-              sx={{ mb: 2 }}
-              disabled={loading} />
-
-            <FormControl sx={{ minWidth: 300, mt: 2 }}>
-              <InputLabel>Points (in order)</InputLabel>
+          {/* Category & Type */}
+          <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+            <FormControl sx={{ minWidth: 180 }}>
+              <InputLabel>Category</InputLabel>
               <Select
-                multiple
-                value={day.selectedPoints}
-                input={<OutlinedInput label="Points (in order)" />}
-                renderValue={(selected) => (
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    {selected.map((p) => (
-                      <Chip key={p.id} label={p.name} />
-                    ))}
-                  </Box>
-                )}
-                onChange={(e) => handleDayPointsChange(dayIdx, e.target.value)}
+                value={category}
+                label="Category"
+                onChange={(e) => handleCategoryChange(e.target.value)}
                 disabled={loading}
               >
-                {routePoints.map((pt) => (
-                  <MenuItem
-                    key={pt.id}
-                    value={pt}
-                    disabled={isPointDisabled(pt.name, dayIdx)}
-                  >
-                    <Checkbox
-                      checked={day.selectedPoints.some((p) => p.id === pt.id)} />
-                    <ListItemText primary={pt.name} />
+                {PACKAGE_CATEGORIES.map((c) => (
+                  <MenuItem key={c.value} value={c.value}>
+                    {c.label}
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
 
-            <Box sx={{ mt: 2 }}>
-              {day.selectedPoints.length === 0 && (
-                <Typography color="text.secondary" fontSize={14}>
-                  No points selected for this day.
-                </Typography>
+            <FormControl sx={{ minWidth: 200 }}>
+              <InputLabel>Type</InputLabel>
+              <Select
+                value={type}
+                label="Type"
+                onChange={(e) => handleTypeChange(e.target.value)}
+                disabled={loading}
+              >
+                {PACKAGE_TYPES.map((t) => (
+                  <MenuItem key={t.value} value={t.value}>
+                    {t.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+
+          {/* Route */}
+          <FormControl sx={{ minWidth: 350, mb: 3 }}>
+            <InputLabel>Route</InputLabel>
+            <Select
+              value={routeId}
+              label="Route"
+              onChange={(e) => handleRouteSelect(e.target.value)}
+              disabled={loading}
+            >
+              {routes.map((r) => (
+                <MenuItem key={r.id} value={r.id}>
+                  {r.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Vehicle */}
+          <FormControl fullWidth sx={{ mb: 3 }}>
+            <InputLabel>Vehicles</InputLabel>
+            <Select
+              multiple
+              value={selectedVehicles}
+              onChange={(e) => setSelectedVehicles(e.target.value)}
+              input={<OutlinedInput label="Vehicles" />}
+              renderValue={(selected) => (
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                  {selected.map((id) => {
+                    const v = vehicles.find((veh) => veh.id === id);
+                    return v ? (
+                      <Chip
+                        key={id}
+                        label={v.model_name}
+                        onDelete={() =>
+                          setSelectedVehicles((prev) =>
+                            prev.filter((vid) => vid !== id)
+                          )
+                        }
+                      />
+                    ) : null;
+                  })}
+                </Box>
               )}
+            >
+              {vehicles.map((v) => (
+                <MenuItem key={v.id} value={v.id}>
+                  <Checkbox checked={selectedVehicles.indexOf(v.id) > -1} />
+                  <ListItemText
+                    primary={`${v.model_name} (${v.seater_range || ""}) (${
+                      v.vehicle_category || ""
+                    })`}
+                  />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
-              {day.selectedPoints.map((pt, idx) => (
-                <React.Fragment key={pt.id}>
-                  <Paper
-                    sx={{ p: 1.5, mb: 2, background: "#fff", boxShadow: 0 }}
-                  >
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                      {pt.name}
-                    </Typography>
+          <FormControl fullWidth sx={{ mb: 3 }}>
+            <InputLabel>Package Add-ons</InputLabel>
+            <Select
+              multiple
+              value={packageAddOns}
+              onChange={(e) => setPackageAddOns(e.target.value)}
+              input={<OutlinedInput label="Package Add-ons" />}
+              renderValue={(selected) => (
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                  {selected.map((id) => {
+                    const a = availableAddOns.find((ao) => ao.id === id);
+                    return a ? (
+                      <Chip
+                        key={id}
+                        label={a.title}
+                        onDelete={() =>
+                          setPackageAddOns((prev) =>
+                            prev.filter((aid) => aid !== id)
+                          )
+                        }
+                      />
+                    ) : null;
+                  })}
+                </Box>
+              )}
+            >
+              {availableAddOns.map((a) => (
+                <MenuItem key={a.id} value={a.id}>
+                  <Checkbox checked={packageAddOns.indexOf(a.id) > -1} />
+                  <ListItemText primary={`${a.title} (₹${a.price})`} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Box sx={{ mt: 1 }}>
+            <Button
+              size="small"
+              variant="text"
+              onClick={() => setShowAddOnDialog(true)}
+              sx={{ textTransform: "none" }}
+            >
+              + Add Add-On
+            </Button>
+          </Box>
 
-                    <FormControl sx={{ minWidth: 220, mr: 2 }}>
-                      <InputLabel>Option</InputLabel>
-                      <Select
-                        value={day.pointModes[pt.id] || ""}
-                        label="Option"
-                        onChange={(e) => handlePointModeChange(dayIdx, pt, e.target.value)}
-                        disabled={loading}
-                      >
-                        <MenuItem value="sightseeing">Sightseeing</MenuItem>
-                        <MenuItem value="stay">Stay (Hotel)</MenuItem>
-                        <MenuItem value="others">others</MenuItem>
-                      </Select>
-                    </FormControl>
+          {/* Days */}
+          {days.map((day, dayIdx) => (
+            <Paper key={dayIdx} sx={{ p: 2, mb: 2, background: "#f8f9fd" }}>
+              <Typography variant="h6" gutterBottom>
+                Day {dayIdx + 1}
+              </Typography>
+              <TextField
+                label="Day Description"
+                value={days[dayIdx].description}
+                onChange={(e) => {
+                  const newDays = [...days];
+                  newDays[dayIdx].description = e.target.value;
+                  setDays(newDays);
+                }}
+                fullWidth
+                multiline
+                rows={2}
+                sx={{ mb: 2 }}
+                disabled={loading}
+              />
 
-                    {day.pointModes[pt.id] === "sightseeing" && (
-                      <FormControl sx={{ minWidth: 280, ml: 2 }}>
-                        <InputLabel>Select Sightseeing</InputLabel>
-                        <Select
-                          value={day.finalizedSightseeing[pt.id] || ""}
-                          label="Select Sightseeing"
-                          onChange={(e) => handleFinalizeSightseeing(
-                            dayIdx,
-                            pt,
-                            e.target.value
-                          )}
-                          disabled={loading}
-                        >
-                          {(day.availableSightseeing[pt.id] || []).map((s) => (
-                            <MenuItem key={s.id} value={s.id}>
-                              {s.place_name}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    )}
-
-                    {day.pointModes[pt.id] === "stay" && (
-                      <FormControl sx={{ minWidth: 280, ml: 2 }}>
-                        <InputLabel>Select Hotel</InputLabel>
-                        <Select
-                          value={day.finalizedHotel[pt.id] || ""}
-                          label="Select Hotel"
-                          onChange={(e) => handleFinalizeHotel(dayIdx, pt, e.target.value)}
-                          disabled={loading}
-                        >
-                          {(day.availableHotels[pt.id] || []).map((h) => (
-                            <MenuItem key={h.id} value={h.id}>
-                              {h.hotel_name}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    )}
-
-                    {day.pointModes[pt.id] === "others" && (
-                      <FormControl sx={{ minWidth: 280, ml: 2 }}>
-                        <InputLabel>Select Add-ons</InputLabel>
-                        <Select
-                          multiple
-                          value={day.finalizedAddOns?.[pt.id] || []}
-                          onChange={(e) => {
-                            const newDays = [...days];
-                            if (!newDays[dayIdx].finalizedAddOns)
-                              newDays[dayIdx].finalizedAddOns = {};
-                            newDays[dayIdx].finalizedAddOns[pt.id] =
-                              e.target.value;
-                            setDays(newDays);
-                          } }
-                          input={<OutlinedInput label="Select Add-ons" />}
-                          renderValue={(selected) => (
-                            <Box
-                              sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}
-                            >
-                              {selected.map((id) => {
-                                const ao = availableAddOns.find(
-                                  (a) => a.id === id
-                                );
-                                return ao ? (
-                                  <Chip key={id} label={ao.title} />
-                                ) : null;
-                              })}
-                            </Box>
-                          )}
-                        >
-                          {availableAddOns.map((a) => (
-                            <MenuItem key={a.id} value={a.id}>
-                              <Checkbox
-                                checked={day.finalizedAddOns?.[pt.id]?.indexOf(a.id) >
-                                  -1} />
-                              <ListItemText
-                                primary={`${a.title} (₹${a.price})`} />
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    )}
-
-                    {(!day.availableSightseeing[pt.id] ||
-                      day.availableSightseeing[pt.id].length === 0) &&
-                      day.pointModes[pt.id] === "sightseeing" && (
-                        <Typography variant="body2" sx={{ mt: 1 }}>
-                          No sightseeing records found in DB for this point.
-                        </Typography>
-                      )}
-
-                    {(!day.availableHotels[pt.id] ||
-                      day.availableHotels[pt.id].length === 0) &&
-                      day.pointModes[pt.id] === "stay" && (
-                        <Typography variant="body2" sx={{ mt: 1 }}>
-                          No hotel records found in DB for this point.
-                        </Typography>
-                      )}
-                  </Paper>
-
-                  {idx < day.selectedPoints.length - 1 && (
-                    <Box sx={{ ml: 2, mb: 2 }}>
-                      {(() => {
-                        const from = day.selectedPoints[idx];
-                        const to = day.selectedPoints[idx + 1];
-                        const seg = getDistanceTimeBetween(from, to);
-                        return seg ? (
-                          <Typography variant="body2" color="text.secondary">
-                            {from.name} ➝ {to.name}: {seg.distance} km,{" "}
-                            {seg.time}
-                          </Typography>
-                        ) : (
-                          <Typography variant="body2" color="error">
-                            Distance/Time not found for {from.name} ➝ {to.name}
-                          </Typography>
-                        );
-                      })()}
+              <FormControl sx={{ minWidth: 300, mt: 2 }}>
+                <InputLabel>Points (in order)</InputLabel>
+                <Select
+                  multiple
+                  value={day.selectedPoints}
+                  input={<OutlinedInput label="Points (in order)" />}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                      {selected.map((p) => (
+                        <Chip key={p.id} label={p.name} />
+                      ))}
                     </Box>
                   )}
-                </React.Fragment>
-              ))}
-            </Box>
-          </Paper>
-        ))}
-
-        {loading && <CircularProgress sx={{ mt: 2 }} />}
-
-        {/* Pricing Display: per day breakdown */}
-        {pricingData && (
-          <>
-            <Typography variant="h5" color="primary" mb={2}>
-              Pricing Calculation Details Per Day
-            </Typography>
-            <TableContainer>
-              <Table size="small" aria-label="per-day pricing breakdown">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Day</TableCell>
-                    <TableCell>Vehicle (₹)</TableCell>
-                    <TableCell>Sightseeing (₹)</TableCell>
-                    <TableCell>Hotels (₹)</TableCell>
-                    <TableCell>Total (₹)</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {pricingData.perDayDetails.map((day) => (
-                    <React.Fragment key={day.day}>
-                      <TableRow>
-                        <TableCell>{`Day ${day.day}`}</TableCell>
-                        <TableCell>{day.dayVehicleTotal.toFixed(2)}</TableCell>
-                        <TableCell>
-                          {day.daySightseeingTotal.toFixed(2)}
-                        </TableCell>
-                        <TableCell>{day.dayHotelTotal.toFixed(2)}</TableCell>
-                        <TableCell>
-                          {(
-                            day.dayVehicleTotal +
-                            day.daySightseeingTotal +
-                            day.dayHotelTotal
-                          ).toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell
-                          colSpan={5}
-                          sx={{ pl: 4, bgcolor: "#f9f9f9" }}
-                        >
-                          <Typography variant="subtitle2">
-                            Vehicle details:
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            component="div"
-                            sx={{ pl: 2 }}
-                          >
-                            {`Distance: ${day.dayKms.toFixed(
-                              2
-                            )} km × ₹${pricingData.vehiclePricePerKm.toFixed(
-                              2
-                            )} + Fixed Night Charge: ₹${pricingData.fixedNightCharge}`}
-                          </Typography>
-
-                          {day.daySightseeingDetails.length > 0 && (
-                            <>
-                              <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                                Sightseeing details:
-                              </Typography>
-                              {day.daySightseeingDetails.map((s, i) => (
-                                <Typography
-                                  key={i}
-                                  variant="body2"
-                                  component="div"
-                                  sx={{ pl: 2 }}
-                                >
-                                  {`${s.sightseeingName}: ₹${s.totalFees.toFixed(
-                                    2
-                                  )} (Adult: ₹${s.feesAdult.toFixed(
-                                    2
-                                  )}, Child: ₹${s.feesChild.toFixed(2)})`}
-                                </Typography>
-                              ))}
-                            </>
-                          )}
-
-                          {day.dayHotelDetails.length > 0 && (
-                            <>
-                              <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                                Hotel details:
-                              </Typography>
-                              {day.dayHotelDetails.map((h, i) => (
-                                <Typography
-                                  key={i}
-                                  variant="body2"
-                                  component="div"
-                                  sx={{ pl: 2 }}
-                                >
-                                  {`${h.hotelName}: ₹${h.price.toFixed(2)}`}
-                                </Typography>
-                              ))}
-                            </>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    </React.Fragment>
+                  onChange={(e) =>
+                    handleDayPointsChange(dayIdx, e.target.value)
+                  }
+                  disabled={loading}
+                >
+                  {routePoints.map((pt) => (
+                    <MenuItem
+                      key={pt.id}
+                      value={pt}
+                      disabled={isPointDisabled(pt.name, dayIdx)}
+                    >
+                      <Checkbox
+                        checked={day.selectedPoints.some((p) => p.id === pt.id)}
+                      />
+                      <ListItemText primary={pt.name} />
+                    </MenuItem>
                   ))}
+                </Select>
+              </FormControl>
 
-                  <TableRow>
-                    <TableCell colSpan={1} fontWeight="bold">
-                      Carrier Charge
-                    </TableCell>
-                    <TableCell colSpan={3} />
-                    <TableCell fontWeight="bold">
-                      {pricingData.carrierCharge.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell colSpan={4} fontWeight="bold">
-                      Add-ons Total
-                    </TableCell>
-                    <TableCell fontWeight="bold">
-                      {(pricingData.grandAddOnsTotal || 0).toFixed(2)}
-                    </TableCell>
-                  </TableRow>
+              <Box sx={{ mt: 2 }}>
+                {day.selectedPoints.length === 0 && (
+                  <Typography color="text.secondary" fontSize={14}>
+                    No points selected for this day.
+                  </Typography>
+                )}
 
-                  <TableRow>
-                    <TableCell colSpan={4} fontWeight="bold">
-                      Grand Total Price
-                    </TableCell>
-                    <TableCell fontWeight="bold">
-                      {pricingData.totalPrice.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </>
-        )}
+                {day.selectedPoints.map((pt, idx) => (
+                  <React.Fragment key={pt.id}>
+                    <Paper
+                      sx={{ p: 1.5, mb: 2, background: "#fff", boxShadow: 0 }}
+                    >
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        {pt.name}
+                      </Typography>
 
-        <Box sx={{ mt: 4, textAlign: "right" }}>
-          <Button
-            variant="contained"
-            onClick={handleSavePackage}
-            disabled={loading ||
-              !packageName.trim() ||
-              !category ||
-              !type ||
-              !routeId ||
-              selectedVehicles.length === 0}
-          >
-            Save Package
-          </Button>
-        </Box>
-      </Paper>
-    </Box><Dialog open={showAddOnDialog} onClose={() => setShowAddOnDialog(false)} maxWidth="sm" fullWidth>
+                      <FormControl sx={{ minWidth: 220, mr: 2 }}>
+                        <InputLabel>Option</InputLabel>
+                        <Select
+                          value={day.pointModes[pt.id] || ""}
+                          label="Option"
+                          onChange={(e) =>
+                            handlePointModeChange(dayIdx, pt, e.target.value)
+                          }
+                          disabled={loading}
+                        >
+                          <MenuItem value="sightseeing">Sightseeing</MenuItem>
+                          <MenuItem value="stay">Stay (Hotel)</MenuItem>
+                          <MenuItem value="others">others</MenuItem>
+                        </Select>
+                      </FormControl>
+
+                      {day.pointModes[pt.id] === "sightseeing" && (
+                        <FormControl sx={{ minWidth: 280, ml: 2 }}>
+                          <InputLabel>Select Sightseeing</InputLabel>
+                          <Select
+                            value={day.finalizedSightseeing[pt.id] || ""}
+                            label="Select Sightseeing"
+                            onChange={(e) =>
+                              handleFinalizeSightseeing(
+                                dayIdx,
+                                pt,
+                                e.target.value
+                              )
+                            }
+                            disabled={loading}
+                          >
+                            {(day.availableSightseeing[pt.id] || []).map(
+                              (s) => (
+                                <MenuItem key={s.id} value={s.id}>
+                                  {s.place_name} {s.mode ? `(${s.mode})` : ""}
+                                </MenuItem>
+                              )
+                            )}
+                          </Select>
+                        </FormControl>
+                      )}
+
+                      {day.pointModes[pt.id] === "stay" && (
+                        <FormControl sx={{ minWidth: 280, ml: 2 }}>
+                          <InputLabel>Select Hotel</InputLabel>
+                          <Select
+                            value={day.finalizedHotel[pt.id] || ""}
+                            label="Select Hotel"
+                            onChange={(e) =>
+                              handleFinalizeHotel(dayIdx, pt, e.target.value)
+                            }
+                            disabled={loading}
+                          >
+                            {(day.availableHotels[pt.id] || []).map((h) => (
+                              <MenuItem key={h.id} value={h.id}>
+                                {h.hotel_name}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      )}
+
+                      {day.pointModes[pt.id] === "others" && (
+                        <FormControl sx={{ minWidth: 280, ml: 2 }}>
+                          <InputLabel>Select Add-ons</InputLabel>
+                          <Select
+                            multiple
+                            value={day.finalizedAddOns?.[pt.id] || []}
+                            onChange={(e) => {
+                              const newDays = [...days];
+                              if (!newDays[dayIdx].finalizedAddOns)
+                                newDays[dayIdx].finalizedAddOns = {};
+                              newDays[dayIdx].finalizedAddOns[pt.id] =
+                                e.target.value;
+                              setDays(newDays);
+                            }}
+                            input={<OutlinedInput label="Select Add-ons" />}
+                            renderValue={(selected) => (
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: 1,
+                                }}
+                              >
+                                {selected.map((id) => {
+                                  const ao = availableAddOns.find(
+                                    (a) => a.id === id
+                                  );
+                                  return ao ? (
+                                    <Chip key={id} label={ao.title} />
+                                  ) : null;
+                                })}
+                              </Box>
+                            )}
+                          >
+                            {availableAddOns.map((a) => (
+                              <MenuItem key={a.id} value={a.id}>
+                                <Checkbox
+                                  checked={
+                                    day.finalizedAddOns?.[pt.id]?.indexOf(
+                                      a.id
+                                    ) > -1
+                                  }
+                                />
+                                <ListItemText
+                                  primary={`${a.title} (₹${a.price})`}
+                                />
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      )}
+
+                      {(!day.availableSightseeing[pt.id] ||
+                        day.availableSightseeing[pt.id].length === 0) &&
+                        day.pointModes[pt.id] === "sightseeing" && (
+                          <Typography variant="body2" sx={{ mt: 1 }}>
+                            No sightseeing records found in DB for this point.
+                          </Typography>
+                        )}
+
+                      {(!day.availableHotels[pt.id] ||
+                        day.availableHotels[pt.id].length === 0) &&
+                        day.pointModes[pt.id] === "stay" && (
+                          <Typography variant="body2" sx={{ mt: 1 }}>
+                            No hotel records found in DB for this point.
+                          </Typography>
+                        )}
+                    </Paper>
+
+                    {idx < day.selectedPoints.length - 1 && (
+                      <Box sx={{ ml: 2, mb: 2 }}>
+                        {(() => {
+                          const from = day.selectedPoints[idx];
+                          const to = day.selectedPoints[idx + 1];
+                          const seg = getDistanceTimeBetween(from, to);
+                          return seg ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {from.name} ➝ {to.name}: {seg.distance} km,{" "}
+                              {seg.time}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="error">
+                              Distance/Time not found for {from.name} ➝{" "}
+                              {to.name}
+                            </Typography>
+                          );
+                        })()}
+                      </Box>
+                    )}
+                  </React.Fragment>
+                ))}
+              </Box>
+            </Paper>
+          ))}
+
+          {loading && <CircularProgress sx={{ mt: 2 }} />}
+
+          {/* Pricing Display: per day breakdown */}
+          {pricingData && (
+            <>
+              <Typography variant="h5" color="primary" mb={2}>
+                Pricing Calculation Details Per Day
+              </Typography>
+              <TableContainer>
+                <Table size="small" aria-label="per-day pricing breakdown">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Day</TableCell>
+                      <TableCell>Vehicle (₹)</TableCell>
+                      <TableCell>Sightseeing (₹)</TableCell>
+                      <TableCell>Hotels (₹)</TableCell>
+                      <TableCell>Total (₹)</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {pricingData.perDayDetails.map((day) => (
+                      <React.Fragment key={day.day}>
+                        <TableRow>
+                          <TableCell>{`Day ${day.day}`}</TableCell>
+                          <TableCell>
+                            {day.dayVehicleTotal.toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            {day.daySightseeingTotal.toFixed(2)}
+                          </TableCell>
+                          <TableCell>{day.dayHotelTotal.toFixed(2)}</TableCell>
+                          <TableCell>
+                            {(
+                              day.dayVehicleTotal +
+                              day.daySightseeingTotal +
+                              day.dayHotelTotal
+                            ).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell
+                            colSpan={5}
+                            sx={{ pl: 4, bgcolor: "#f9f9f9" }}
+                          >
+                            <Typography variant="subtitle2">
+                              Vehicle details:
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              component="div"
+                              sx={{ pl: 2 }}
+                            >
+                              {`Distance: ${day.dayKms.toFixed(
+                                2
+                              )} km × ₹${pricingData.vehiclePricePerKm.toFixed(
+                                2
+                              )} + Fixed Night Charge: ₹${
+                                pricingData.fixedNightCharge
+                              }`}
+                            </Typography>
+
+                            {day.daySightseeingDetails.length > 0 && (
+                              <>
+                                <Typography variant="subtitle2" sx={{ mt: 1 }}>
+                                  Sightseeing details:
+                                </Typography>
+                                {day.daySightseeingDetails.map((s, i) => (
+                                  <Typography
+                                    key={i}
+                                    variant="body2"
+                                    component="div"
+                                    sx={{ pl: 2 }}
+                                  >
+                                    {`${
+                                      s.sightseeingName
+                                    }: ₹${s.totalFees.toFixed(
+                                      2
+                                    )} (Adult: ₹${s.feesAdult.toFixed(
+                                      2
+                                    )}, Child: ₹${s.feesChild.toFixed(2)})`}
+                                  </Typography>
+                                ))}
+                              </>
+                            )}
+
+                            {day.dayHotelDetails.length > 0 && (
+                              <>
+                                <Typography variant="subtitle2" sx={{ mt: 1 }}>
+                                  Hotel details:
+                                </Typography>
+                                {day.dayHotelDetails.map((h, i) => (
+                                  <Typography
+                                    key={i}
+                                    variant="body2"
+                                    component="div"
+                                    sx={{ pl: 2 }}
+                                  >
+                                    {`${h.hotelName}: ₹${h.price.toFixed(2)}`}
+                                  </Typography>
+                                ))}
+                              </>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      </React.Fragment>
+                    ))}
+
+                    <TableRow>
+                      <TableCell colSpan={1} fontWeight="bold">
+                        Carrier Charge
+                      </TableCell>
+                      <TableCell colSpan={3} />
+                      <TableCell fontWeight="bold">
+                        {pricingData.carrierCharge.toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell colSpan={4} fontWeight="bold">
+                        Add-ons Total
+                      </TableCell>
+                      <TableCell fontWeight="bold">
+                        {(pricingData.grandAddOnsTotal || 0).toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+
+                    <TableRow>
+                      <TableCell colSpan={4} fontWeight="bold">
+                        Grand Total Price
+                      </TableCell>
+                      <TableCell fontWeight="bold">
+                        {pricingData.totalPrice.toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          )}
+
+          <Box sx={{ mt: 4, textAlign: "right" }}>
+            <Button
+              variant="contained"
+              onClick={handleSavePackage}
+              disabled={
+                loading ||
+                !packageName.trim() ||
+                !category ||
+                !type ||
+                !routeId ||
+                selectedVehicles.length === 0
+              }
+            >
+              Save Package
+            </Button>
+          </Box>
+        </Paper>
+      </Box>
+      <Dialog
+        open={showAddOnDialog}
+        onClose={() => setShowAddOnDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Add New Add-On</DialogTitle>
         <DialogContent>
           <TextField
@@ -1537,22 +1604,27 @@ export default function PackageCreation() {
             value={newAddOn.title}
             onChange={(e) => handleNewAddOnChange("title", e.target.value)}
             fullWidth
-            margin="normal" />
+            margin="normal"
+          />
           <TextField
             label="Description"
             value={newAddOn.description}
-            onChange={(e) => handleNewAddOnChange("description", e.target.value)}
+            onChange={(e) =>
+              handleNewAddOnChange("description", e.target.value)
+            }
             fullWidth
             multiline
             rows={3}
-            margin="normal" />
+            margin="normal"
+          />
           <TextField
             label="Price"
             type="number"
             value={newAddOn.price}
             onChange={(e) => handleNewAddOnChange("price", e.target.value)}
             fullWidth
-            margin="normal" />
+            margin="normal"
+          />
 
           <Button variant="outlined" component="label" sx={{ mt: 2 }}>
             Upload Images
@@ -1563,7 +1635,8 @@ export default function PackageCreation() {
               accept="image/*"
               onChange={(e) => {
                 if (e.target.files) handleNewAddOnImageAdd(e.target.files);
-              } } />
+              }}
+            />
           </Button>
 
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 2 }}>
@@ -1572,7 +1645,13 @@ export default function PackageCreation() {
                 <img
                   src={img.url}
                   alt={`new_addon_${idx}`}
-                  style={{ width: 80, height: 80, borderRadius: 6, objectFit: "cover" }} />
+                  style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: 6,
+                    objectFit: "cover",
+                  }}
+                />
                 <IconButton
                   size="small"
                   onClick={() => handleNewAddOnImageRemove(idx)}
@@ -1591,14 +1670,21 @@ export default function PackageCreation() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowAddOnDialog(false)} disabled={uploadingAddOn}>
+          <Button
+            onClick={() => setShowAddOnDialog(false)}
+            disabled={uploadingAddOn}
+          >
             Cancel
           </Button>
-          <Button onClick={handleSaveNewAddOn} disabled={uploadingAddOn} variant="contained">
+          <Button
+            onClick={handleSaveNewAddOn}
+            disabled={uploadingAddOn}
+            variant="contained"
+          >
             {uploadingAddOn ? "Saving..." : "Save"}
           </Button>
         </DialogActions>
-      </Dialog></>
-
+      </Dialog>
+    </>
   );
 }

@@ -19,13 +19,13 @@ import { supabase } from "../lib/supabase";
 
 export default function BookingRequests() {
   const [bookings, setBookings] = useState([]);
+  const [hotelBookings, setHotelBookings] = useState([]);
   const [trips, setTrips] = useState([]);
   const [availableDriversMap, setAvailableDriversMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [processingMap, setProcessingMap] = useState({});
   const [selectedDriver, setSelectedDriver] = useState({});
 
-  // Fetch bookings and related trips
   async function fetchBookingRequests() {
     setLoading(true);
     const { data: bookingsData, error: bookingsError } = await supabase
@@ -41,7 +41,6 @@ export default function BookingRequests() {
     }
     setBookings(bookingsData || []);
 
-    // Fetch related trips by tripId
     const tripIds = [...new Set(bookingsData.map((b) => b.tripId).filter(Boolean))];
     if (tripIds.length > 0) {
       const { data: tripsData, error: tripsError } = await supabase
@@ -58,93 +57,92 @@ export default function BookingRequests() {
     } else {
       setTrips([]);
     }
-
     setLoading(false);
   }
 
-  // Fetch drivers available for booking's route and departure date
-async function fetchAvailableDriversForBooking(booking) {
-  if (!booking) return [];
+  async function fetchHotelBookingRequests() {
+    const { data: hotelBookingData, error: hotelBookingError } = await supabase
+      .from("hotel_bookings")
+      .select("*")
+      .eq("booking_status", "pending")
+      .order("created_at", { ascending: true });
 
-  // Parse bookingDate as UTC date without time component
-  const bookingDateUTC = new Date(booking.bookingDate + "T00:00:00Z");
-  const dayStart = new Date(bookingDateUTC);
-  const dayEnd = new Date(bookingDateUTC);
-  dayEnd.setUTCHours(23, 59, 59, 999);
-
-  // Find routeId from trip for that booking
-  const tripData = trips.find((t) => t.id === booking.tripId);
-  if (!tripData || !tripData.routeId) return [];
-  const routeId = tripData.routeId;
-
-  // Query trips on same route and date with a driver assigned (userId not null)
-  // Also calculate remaining seats by subtracting booked seats from total seats
-  // This requires a query with a join or post-processing
-
-  // Step 1: Get trips matching route, date, and driver assigned  
-  const { data: candidateTrips, error: tripError } = await supabase
-    .from("trips")
-    .select("id, userId, seat, departureTime")
-    .eq("routeId", routeId)
-    .gte("departureTime", dayStart.toISOString())
-    .lte("departureTime", dayEnd.toISOString())
-    .not("userId", "is", null);
-
-  if (tripError || !candidateTrips) {
-    console.error("Error fetching candidate trips:", tripError);
-    return [];
-  }
-  if (candidateTrips.length === 0) return [];
-
-  // Step 2: For each candidate trip, fetch total booked seats
-  const tripIds = candidateTrips.map((t) => t.id);
-
-  const { data: bookingSeats, error: bookingError } = await supabase
-    .from("bookings")
-    .select("tripId, noOfSeats")
-    .in("tripId", tripIds)
-    .in("bookingStatus", ["pending", "upcoming"]); // only count active bookings
-
-  if (bookingError) {
-    console.error("Error fetching booking seats:", bookingError);
-    return [];
-  }
-  
-  // Calculate seats booked per trip
-  const seatsBookedMap = {};
-  bookingSeats.forEach((b) => {
-    seatsBookedMap[b.tripId] = (seatsBookedMap[b.tripId] || 0) + b.noOfSeats;
-  });
-
-  // Step 3: Filter trips whose remaining seats >= booking.noOfSeats
-  const sufficientTrips = candidateTrips.filter((trip) => {
-    const bookedSeats = seatsBookedMap[trip.id] || 0;
-    const remainingSeats = trip.seat - bookedSeats;
-    return remainingSeats >= booking.noOfSeats;
-  });
-
-  if (sufficientTrips.length === 0) return [];
-
-  // Step 4: Extract unique driverIds from filtered trips
-  const driverIds = [...new Set(sufficientTrips.map((t) => t.userId))];
-  if (driverIds.length === 0) return [];
-
-  // Step 5: Fetch driver profiles by driverIds
-  const { data: driversData, error: driversError } = await supabase
-    .from("driver_profiles")
-    .select("id, name")
-    .in("id", driverIds);
-
-  if (driversError) {
-    console.error("Error fetching driver profiles:", driversError);
-    return [];
+    if (hotelBookingError) {
+      console.error("Failed to load hotel bookings:", hotelBookingError);
+      setHotelBookings([]);
+      return;
+    }
+    setHotelBookings(hotelBookingData || []);
   }
 
-  return driversData || [];
-}
+  async function fetchAvailableDriversForBooking(booking) {
+    if (!booking) return [];
 
+    const bookingDateUTC = new Date(booking.bookingDate + "T00:00:00Z");
+    const dayStart = new Date(bookingDateUTC);
+    const dayEnd = new Date(bookingDateUTC);
+    dayEnd.setUTCHours(23, 59, 59, 999);
 
-  // Load available drivers per booking after bookings and trips are loaded
+    const tripData = trips.find((t) => t.id === booking.tripId);
+    if (!tripData || !tripData.routeId) return [];
+    const routeId = tripData.routeId;
+
+    const { data: candidateTrips, error: tripError } = await supabase
+      .from("trips")
+      .select("id, userId, seat, departureTime")
+      .eq("routeId", routeId)
+      .gte("departureTime", dayStart.toISOString())
+      .lte("departureTime", dayEnd.toISOString())
+      .not("userId", "is", null);
+
+    if (tripError || !candidateTrips) {
+      console.error("Error fetching candidate trips:", tripError);
+      return [];
+    }
+    if (candidateTrips.length === 0) return [];
+
+    const tripIds = candidateTrips.map((t) => t.id);
+
+    const { data: bookingSeats, error: bookingError } = await supabase
+      .from("bookings")
+      .select("tripId, noOfSeats")
+      .in("tripId", tripIds)
+      .in("bookingStatus", ["pending", "upcoming"]);
+
+    if (bookingError) {
+      console.error("Error fetching booking seats:", bookingError);
+      return [];
+    }
+
+    const seatsBookedMap = {};
+    bookingSeats.forEach((b) => {
+      seatsBookedMap[b.tripId] = (seatsBookedMap[b.tripId] || 0) + b.noOfSeats;
+    });
+
+    const sufficientTrips = candidateTrips.filter((trip) => {
+      const bookedSeats = seatsBookedMap[trip.id] || 0;
+      const remainingSeats = trip.seat - bookedSeats;
+      return remainingSeats >= booking.noOfSeats;
+    });
+
+    if (sufficientTrips.length === 0) return [];
+
+    const driverIds = [...new Set(sufficientTrips.map((t) => t.userId))];
+    if (driverIds.length === 0) return [];
+
+    const { data: driversData, error: driversError } = await supabase
+      .from("driver_profiles")
+      .select("id, name")
+      .in("id", driverIds);
+
+    if (driversError) {
+      console.error("Error fetching driver profiles:", driversError);
+      return [];
+    }
+
+    return driversData || [];
+  }
+
   useEffect(() => {
     async function loadAvailableDrivers() {
       const map = {};
@@ -161,7 +159,6 @@ async function fetchAvailableDriversForBooking(booking) {
     }
   }, [bookings, trips]);
 
-  // Confirm booking by assigning selected driver and set bookingStatus to "upcoming"
   async function handleConfirmBooking(bookingId) {
     const driverId = selectedDriver[bookingId];
     if (!driverId) {
@@ -170,7 +167,6 @@ async function fetchAvailableDriversForBooking(booking) {
     }
     setProcessingMap((prev) => ({ ...prev, [bookingId]: true }));
     try {
-      // Update booking with driver and set status upcoming
       const { data: updatedBooking, error: updateError } = await supabase
         .from("bookings")
         .update({
@@ -180,29 +176,24 @@ async function fetchAvailableDriversForBooking(booking) {
         .eq("id", bookingId)
         .select()
         .single();
-
       if (updateError || !updatedBooking) {
         console.error("Error updating booking:", updateError);
         alert("Failed to confirm booking: " + (updateError?.message || "Unknown error"));
         setProcessingMap((prev) => ({ ...prev, [bookingId]: false }));
         return;
       }
-
-      // Insert into driver_bookings
       const { error: insertError } = await supabase
         .from("driver_bookings")
         .insert({
           driver_id: driverId,
           booking_id: bookingId,
         });
-
       if (insertError) {
         console.error("Error inserting into driver_bookings:", insertError);
         alert("Failed to record driver booking: " + insertError.message);
         setProcessingMap((prev) => ({ ...prev, [bookingId]: false }));
         return;
       }
-
       setBookings((prev) => prev.filter((b) => b.id !== bookingId));
       setSelectedDriver((prev) => ({ ...prev, [bookingId]: "" }));
     } catch (err) {
@@ -213,11 +204,9 @@ async function fetchAvailableDriversForBooking(booking) {
     }
   }
 
-  // Cancel booking by setting bookingStatus to "cancelled"
   async function handleCancelBooking(bookingId) {
     const confirmCancel = window.confirm("Are you sure you want to cancel this booking?");
     if (!confirmCancel) return;
-
     setProcessingMap((prev) => ({ ...prev, [bookingId]: true }));
     try {
       const { data, error } = await supabase
@@ -228,14 +217,12 @@ async function fetchAvailableDriversForBooking(booking) {
         .eq("id", bookingId)
         .select()
         .single();
-
       if (error || !data) {
         console.error("Error cancelling booking:", error);
         alert("Failed to cancel booking: " + (error?.message || "Unknown error"));
         setProcessingMap((prev) => ({ ...prev, [bookingId]: false }));
         return;
       }
-
       setBookings((prev) => prev.filter((b) => b.id !== bookingId));
       setSelectedDriver((prev) => ({ ...prev, [bookingId]: "" }));
     } catch (err) {
@@ -246,9 +233,64 @@ async function fetchAvailableDriversForBooking(booking) {
     }
   }
 
-  // Subscribe realtime updates to refresh bookings on changes
+  async function handleConfirmHotelBooking(bookingId) {
+    setProcessingMap((prev) => ({ ...prev, [bookingId]: true }));
+    try {
+      const { data, error } = await supabase
+        .from("hotel_bookings")
+        .update({
+          booking_status: "booked",
+        })
+        .eq("id", bookingId)
+        .select()
+        .single();
+      if (error || !data) {
+        console.error("Error approving hotel booking:", error);
+        alert("Failed to approve hotel booking: " + (error?.message || "Unknown error"));
+        setProcessingMap((prev) => ({ ...prev, [bookingId]: false }));
+        return;
+      }
+      setHotelBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    } catch (err) {
+      console.error("Unexpected error approving hotel booking:", err);
+      alert("Unexpected error: " + err.message);
+    } finally {
+      setProcessingMap((prev) => ({ ...prev, [bookingId]: false }));
+    }
+  }
+
+  async function handleCancelHotelBooking(bookingId) {
+    const confirmCancel = window.confirm("Are you sure you want to cancel this hotel booking?");
+    if (!confirmCancel) return;
+    setProcessingMap((prev) => ({ ...prev, [bookingId]: true }));
+    try {
+      const { data, error } = await supabase
+        .from("hotel_bookings")
+        .update({
+          booking_status: "cancelled",
+        })
+        .eq("id", bookingId)
+        .select()
+        .single();
+      if (error || !data) {
+        console.error("Error cancelling hotel booking:", error);
+        alert("Failed to cancel hotel booking: " + (error?.message || "Unknown error"));
+        setProcessingMap((prev) => ({ ...prev, [bookingId]: false }));
+        return;
+      }
+      setHotelBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    } catch (err) {
+      console.error("Unexpected error cancelling hotel booking:", err);
+      alert("Unexpected error: " + err.message);
+    } finally {
+      setProcessingMap((prev) => ({ ...prev, [bookingId]: false }));
+    }
+  }
+
   useEffect(() => {
     fetchBookingRequests();
+    fetchHotelBookingRequests();
+
     const bookingChannel = supabase
       .channel("booking-requests")
       .on(
@@ -264,12 +306,29 @@ async function fetchAvailableDriversForBooking(booking) {
         }
       )
       .subscribe();
+
+    const hotelBookingChannel = supabase
+      .channel("hotel-booking-requests")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "hotel_bookings",
+          filter: "booking_status=eq.pending",
+        },
+        () => {
+          fetchHotelBookingRequests();
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(bookingChannel);
+      supabase.removeChannel(hotelBookingChannel);
     };
   }, []);
 
-  // Helper to find trip by booking
   function findTripByBooking(booking) {
     return trips.find((t) => t.id === booking.tripId);
   }
@@ -279,10 +338,17 @@ async function fetchAvailableDriversForBooking(booking) {
       <Typography variant="h5" gutterBottom>
         Booking Requests
       </Typography>
+
       {loading && <CircularProgress />}
-      {!loading && bookings.length === 0 && <Typography>No pending booking requests</Typography>}
-      {!loading && bookings.length > 0 && (
-        <TableContainer component={Paper}>
+      {!loading && bookings.length === 0 && hotelBookings.length === 0 && (
+        <Typography>No pending booking requests</Typography>
+      )}
+
+      {bookings.length > 0 && (
+        <TableContainer component={Paper} sx={{ mb: 4 }}>
+          <Typography variant="h6" sx={{ p: 2 }}>
+            Trip Bookings Pending Approval
+          </Typography>
           <Table>
             <TableHead>
               <TableRow>
@@ -300,14 +366,11 @@ async function fetchAvailableDriversForBooking(booking) {
                 const trip = findTripByBooking(booking);
                 const driversForBooking = availableDriversMap[booking.id] || [];
                 const isProcessing = !!processingMap[booking.id];
-
                 return (
                   <TableRow key={booking.id}>
                     <TableCell>{booking.id}</TableCell>
                     <TableCell>{booking.route || "N/A"}</TableCell>
-                    <TableCell>
-                      {trip ? new Date(trip.departureTime).toLocaleString() : "N/A"}
-                    </TableCell>
+                    <TableCell>{trip ? new Date(trip.departureTime).toLocaleString() : "N/A"}</TableCell>
                     <TableCell>{booking.noOfSeats || 1}</TableCell>
                     <TableCell>{booking.totalPrice || "N/A"}</TableCell>
                     <TableCell>
@@ -344,6 +407,68 @@ async function fetchAvailableDriversForBooking(booking) {
                           variant="outlined"
                           color="error"
                           onClick={() => handleCancelBooking(booking.id)}
+                          disabled={isProcessing}
+                          size="small"
+                          sx={{ minWidth: 100, fontSize: "0.75rem", padding: "4px 8px" }}
+                        >
+                          Cancel
+                        </Button>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      {hotelBookings.length > 0 && (
+        <TableContainer component={Paper}>
+          <Typography variant="h6" sx={{ p: 2 }}>
+            Hotel Bookings Pending Approval
+          </Typography>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell><strong>Booking ID</strong></TableCell>
+                <TableCell><strong>Hotel ID</strong></TableCell>
+                <TableCell><strong>Check-in Date</strong></TableCell>
+                <TableCell><strong>Check-out Date</strong></TableCell>
+                <TableCell><strong>Adults</strong></TableCell>
+                <TableCell><strong>Children</strong></TableCell>
+                <TableCell><strong>Total Price (₹)</strong></TableCell>
+                <TableCell><strong>Actions</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {hotelBookings.map((booking) => {
+                const isProcessing = !!processingMap[booking.id];
+                return (
+                  <TableRow key={booking.id}>
+                    <TableCell>{booking.id}</TableCell>
+                    <TableCell>{booking.hotel_id}</TableCell>
+                    <TableCell>{new Date(booking.checkin_date).toLocaleDateString()}</TableCell>
+                    <TableCell>{new Date(booking.checkout_date).toLocaleDateString()}</TableCell>
+                    <TableCell>{booking.adults}</TableCell>
+                    <TableCell>{booking.children}</TableCell>
+                    <TableCell>{booking.total_price || "N/A"}</TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1}>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          onClick={() => handleConfirmHotelBooking(booking.id)}
+                          disabled={isProcessing}
+                          size="small"
+                          sx={{ minWidth: 100, fontSize: "0.75rem", padding: "4px 8px" }}
+                        >
+                          {isProcessing ? "Processing..." : "Approve"}
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          onClick={() => handleCancelHotelBooking(booking.id)}
                           disabled={isProcessing}
                           size="small"
                           sx={{ minWidth: 100, fontSize: "0.75rem", padding: "4px 8px" }}

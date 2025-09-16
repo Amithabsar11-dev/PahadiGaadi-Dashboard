@@ -68,9 +68,10 @@ function PlaceAutocompleteInput({ value, onPlaceSelected }) {
     try {
       const results = await getGeocode({ address: description });
       if (!results.length) return;
-      const address = results.formatted_address;
+      const address = results[0].formatted_address;
       onPlaceSelected(description, address);
     } catch {
+      console.error("Geocode failed:", err);
       onPlaceSelected(description, "");
     }
   };
@@ -134,14 +135,17 @@ export default function SightseeingPointsScreen() {
     notes: "",
     new_equipment: "",
     new_not_allowed: "",
-    gallery_urls: [], // array of urls for UI
+    gallery_urls: [],
+    mode: "",
+    custom_mode: "",
+    route_id: "",
   });
 
   const [saving, setSaving] = useState(false);
   const [points, setPoints] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [routes, setRoutes] = useState([]);
 
-  // Local selected files for upload (previews via URL.createObjectURL)
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -191,6 +195,20 @@ export default function SightseeingPointsScreen() {
         : [...f.open_weekdays, day],
     }));
   };
+
+  useEffect(() => {
+    const fetchRoutes = async () => {
+      const { data, error } = await supabase
+        .from("routes")
+        .select("id, name")
+        .eq("isActive", true)
+        .order("createdAt", { ascending: false });
+
+      if (!error) setRoutes(data || []);
+    };
+
+    fetchRoutes();
+  }, []);
 
   useEffect(() => {
     setForm((f) => ({
@@ -309,6 +327,7 @@ export default function SightseeingPointsScreen() {
       gallery_urls: [],
       mode: "",
       custom_mode: "",
+      route_id: "",
     });
     setSelectedFiles([]);
     setFormOpen(true);
@@ -316,15 +335,15 @@ export default function SightseeingPointsScreen() {
 
   const openEditForm = (point) => {
     let mode = "";
-  let custom_mode = "";
+    let custom_mode = "";
 
-  if (MODES.includes(point.mode)) {
-    mode = point.mode;
-    custom_mode = "";
-  } else if (point.mode) {
-    mode = "Others";
-    custom_mode = point.mode;
-  }
+    if (MODES.includes(point.mode)) {
+      mode = point.mode;
+      custom_mode = "";
+    } else if (point.mode) {
+      mode = "Others";
+      custom_mode = point.mode;
+    }
     setEditPoint(point);
     setForm({
       place_name: point.place_name || "",
@@ -346,8 +365,9 @@ export default function SightseeingPointsScreen() {
       new_equipment: "",
       new_not_allowed: "",
       gallery_urls: dbImageToArray(point.image_url),
-     mode: mode,
-    custom_mode: custom_mode,
+      mode: mode,
+      custom_mode: custom_mode,
+      route_id: point.route_id || "",
     });
     setSelectedFiles([]);
     setFormOpen(true);
@@ -390,10 +410,11 @@ export default function SightseeingPointsScreen() {
       contact_number: form.contact_number || null,
       notes: form.notes || null,
       image_url: arrayToDbImage(imageUrls),
-       mode:
-    form.mode === "Others"
-      ? form.custom_mode?.trim() || null
-      : form.mode || null,
+      mode:
+        form.mode === "Others"
+          ? form.custom_mode?.trim() || null
+          : form.mode || null,
+      route_id: form.route_id || null,
     };
 
     // 4) Persist (update or insert)
@@ -470,6 +491,24 @@ export default function SightseeingPointsScreen() {
           <Typography variant="h5" mb={2}>
             {editPoint ? "Edit Sightseeing Point" : "Add Sightseeing Point"}
           </Typography>
+
+          <TextField
+            select
+            label="Select Route"
+            value={form.route_id || ""}
+            onChange={(e) => handleChange("route_id", e.target.value)}
+            SelectProps={{ native: true }}
+            fullWidth
+            sx={{ mb: 2 }}
+          >
+            <option value="" disabled>
+            </option>
+            {routes.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </TextField>
 
           {/* Place + Address */}
           <PlaceAutocompleteInput
@@ -584,9 +623,10 @@ export default function SightseeingPointsScreen() {
             SelectProps={{ native: true }}
             fullWidth
             sx={{ mb: 2 }}
+            style={{paddingTop: 20}}
           >
             <option value="" disabled>
-             Select Mode
+              Select Mode
             </option>
             {MODES.map((mode) => (
               <option key={mode} value={mode}>

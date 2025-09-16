@@ -197,6 +197,7 @@ export default function HotelsAdmin() {
   const [previewHotel, setPreviewHotel] = React.useState(null);
   const [editHotel, setEditHotel] = React.useState(null);
   const [locationLatLng, setLocationLatLng] = useState(null);
+  const [roomTypes, setRoomTypes] = useState([]);
 
   const [form, setForm] = React.useState({
     id: null,
@@ -237,22 +238,33 @@ export default function HotelsAdmin() {
 
   async function fetchHotels() {
     setLoading(true);
-    const { data } = await supabase
+
+    // fetch hotels
+    const { data: hotelsData, error: hotelError } = await supabase
       .from("hotels_model")
       .select("*")
       .order("created_at", { ascending: false });
-    if (data) {
-      data.forEach((h) => {
-        if (typeof h.gallery_urls === "string") {
-          try {
-            h.gallery_urls = JSON.parse(h.gallery_urls);
-          } catch {
-            h.gallery_urls = [];
-          }
-        }
-      });
+
+    if (hotelError) {
+      console.error("Error fetching hotels:", hotelError);
+      setLoading(false);
+      return;
     }
-    setHotels(data || []);
+
+    const { data: roomTypesData, error: roomError } = await supabase
+      .from("hotel_room_types")
+      .select("*");
+
+    if (roomError) {
+      console.error("Error fetching room types:", roomError);
+    }
+
+    const hotelsWithRooms = (hotelsData || []).map((hotel) => ({
+      ...hotel,
+      roomTypes: (roomTypesData || []).filter((rt) => rt.hotel_id === hotel.id),
+    }));
+
+    setHotels(hotelsWithRooms);
     setLoading(false);
   }
 
@@ -298,6 +310,7 @@ export default function HotelsAdmin() {
 
       setForm((prev) => ({
         ...prev,
+        hotel_location: val,
         zone,
         cluster,
       }));
@@ -307,7 +320,12 @@ export default function HotelsAdmin() {
       }
     } catch (err) {
       setZoneError("Error checking location: " + err.message);
-      setForm((prev) => ({ ...prev, zone: "", cluster: "" }));
+      setForm((prev) => ({
+        ...prev,
+        hotel_location: "",
+        zone: "",
+        cluster: "",
+      }));
       setLocationLatLng(null);
     }
   }
@@ -328,25 +346,42 @@ export default function HotelsAdmin() {
       return;
     }
     const newImages = [];
+
     for (const file of files) {
-      newImages.push({ url: URL.createObjectURL(file), file });
+      try {
+        // Prepare filename and path
+        const ext = file.name.split(".").pop();
+        const safeHotelName = form.hotel_name
+          .replace(/\s+/g, "_")
+          .toLowerCase();
+        const filename = `${crypto.randomUUID()}.${ext}`;
+        const path = `${safeHotelName}/${filename}`;
+
+        // Upload file to hotels-gallery bucket
+        const { error: uploadError } = await supabase.storage
+          .from("hotels-gallery")
+          .upload(path, file);
+
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          continue;
+        }
+
+        // Get public URL for uploaded file
+        const { data } = supabase.storage
+          .from("hotels-gallery")
+          .getPublicUrl(path);
+
+        newImages.push({ url: data.publicUrl });
+      } catch (e) {
+        console.error("Error uploading image:", e);
+      }
     }
+
     setForm((prev) => ({
       ...prev,
-      gallery_urls: [...prev.gallery_urls, ...newImages].slice(0, 5),
+      gallery_urls: [...(prev.gallery_urls || []), ...newImages].slice(0, 5),
     }));
-
-    for (const img of newImages) {
-      try {
-        const url = await uploadImage(img.file);
-        setForm((prev) => ({
-          ...prev,
-          gallery_urls: prev.gallery_urls.map((g) =>
-            g.url === img.url ? { url, file: null } : g
-          ),
-        }));
-      } catch {}
-    }
   }
 
   function removeImage(index) {
@@ -356,74 +391,189 @@ export default function HotelsAdmin() {
     }));
   }
 
-  async function saveHotel() {
-    if (
-      !form.route_id ||
-      !form.hotel_name ||
-      !form.location ||
-      !form.zone ||
-      !form.cluster ||
-      zoneError
-    ) {
-      alert("Please fill all required fields and fix any errors.");
-      return;
-    }
-    setSaving(true);
+  // ✅ Update a field inside a specific room type
+  const updateRoomType = (index, field, value) => {
+    setForm((prev) => {
+      const updatedRoomTypes = [...(prev.roomTypes || [])];
+      updatedRoomTypes[index] = { ...updatedRoomTypes[index], [field]: value };
+      return { ...prev, roomTypes: updatedRoomTypes };
+    });
+  };
+
+  // ✅ Add uploaded images for a room
+  const addRoomImages = (index, files) => {
+    const newImages = files.map((file) => ({
+      file,
+      url: URL.createObjectURL(file),
+    }));
+
+    setForm((prev) => {
+      const updatedRoomTypes = [...(prev.roomTypes || [])];
+      updatedRoomTypes[index] = {
+        ...updatedRoomTypes[index],
+        gallery_urls: [
+          ...(updatedRoomTypes[index].gallery_urls || []),
+          ...newImages,
+        ],
+      };
+      return { ...prev, roomTypes: updatedRoomTypes };
+    });
+  };
+
+  // ✅ Remove an image from a room
+  const removeRoomImage = (roomIndex, imageIndex) => {
+    setForm((prev) => {
+      const updatedRoomTypes = [...(prev.roomTypes || [])];
+      updatedRoomTypes[roomIndex] = {
+        ...updatedRoomTypes[roomIndex],
+        gallery_urls: updatedRoomTypes[roomIndex].gallery_urls.filter(
+          (_, i) => i !== imageIndex
+        ),
+      };
+      return { ...prev, roomTypes: updatedRoomTypes };
+    });
+  };
+
+  // ✅ Upload image to hotels-gallery/{hotel_name}/filename
+  async function uploadRoomImage(file, hotelName) {
+    const ext = file.name.split(".").pop();
+    const filename = `${crypto.randomUUID()}.${ext}`;
+    const folder = hotelName.replace(/\s+/g, "_"); // sanitize folder name
+    const path = `${folder}/${filename}`;
+
+    const { error } = await supabase.storage
+      .from("hotels-gallery")
+      .upload(path, file);
+
+    if (error) throw error;
+
+    const { data } = supabase.storage.from("hotels-gallery").getPublicUrl(path);
+
+    return data.publicUrl;
+  }
+
+  const saveHotel = async () => {
     try {
-      const galleryUrls = form.gallery_urls.map((g) => g.url);
+      setSaving(true);
+
+      // ✅ Prepare hotel payload
       const payload = {
-        route_id: form.route_id,
-        hotel_name: form.hotel_name,
-        location: form.location,
-        zone: form.zone,
-        cluster: form.cluster,
-        gallery_urls: galleryUrls.length ? galleryUrls : null,
-        comment: form.comment || null,
-        food: form.food,
-        rating: form.rating || null,
-        capacity: form.capacity || null,
-        max_price_per_room:
-          form.max_price_per_room === ""
-            ? null
-            : parseInt(form.max_price_per_room),
-        manual_price: form.manual_price ? parseFloat(form.manual_price) : null,
-        hotel_category: form.hotel_category || null,
-        room_type: form.room_type || null,
         service: form.service || null,
-        add_ons: form.add_ons.length ? form.add_ons : null,
+        hotel_category: form.hotel_category || null,
+        max_price_per_room: form.max_price_per_room
+          ? parseInt(form.max_price_per_room, 10)
+          : null,
+        room_type: form.room_type || null,
+        add_ons: form.add_ons?.length ? form.add_ons : null,
         notes: form.notes || null,
-        opening_hours: form.opening_hours || null,
+        hotel_name: form.hotel_name || null,
+        location: form.location || null,
+        hotel_location: form.hotel_location || null,
+        zone: form.zone || null,
+        cluster: form.cluster || null,
+        rating: form.rating ? parseFloat(form.rating) : null,
+        capacity: form.capacity ? parseInt(form.capacity, 10) : null,
         check_in_time: form.check_in_time || null,
         check_out_time: form.check_out_time || null,
         stay_duration_hours: form.stay_duration_hours
           ? parseFloat(form.stay_duration_hours)
           : null,
         stay_duration_desc: form.stay_duration_desc || null,
+        food: form.food || false,
         extra_bed_available: form.extra_bed_available
-          ? parseInt(form.extra_bed_available)
+          ? parseInt(form.extra_bed_available, 10)
           : null,
+        manual_price: form.manual_price ? parseFloat(form.manual_price) : null,
+        gallery_urls: form.gallery_urls?.map((g) => (g.url ? g.url : g)) || [],
       };
-      if (form.id) {
+
+      let hotelId = editHotel?.id;
+
+      if (editHotel) {
+        // ✅ Update hotel
         const { error } = await supabase
           .from("hotels_model")
           .update(payload)
-          .eq("id", form.id);
+          .eq("id", hotelId);
+
         if (error) throw error;
-        alert("Hotel updated successfully.");
+
+        // Delete old room types before re-inserting
+        await supabase
+          .from("hotel_room_types")
+          .delete()
+          .eq("hotel_id", hotelId);
       } else {
-        const { error } = await supabase.from("hotels_model").insert(payload);
+        // ✅ Insert new hotel
+        const { data, error } = await supabase
+          .from("hotels_model")
+          .insert(payload)
+          .select("id")
+          .single();
+
         if (error) throw error;
-        alert("Hotel added successfully.");
+        hotelId = data.id;
       }
+
+      // ✅ Insert room types
+      for (const rt of form.roomTypes || []) {
+        const uploadedUrls = [];
+
+        // Upload each image if it's a File
+        for (const img of rt.gallery_urls || []) {
+          if (img.file) {
+            try {
+              const url = await uploadRoomImage(img.file, form.hotel_name);
+              uploadedUrls.push(url);
+            } catch (e) {
+              console.error("Image upload failed:", e);
+            }
+          } else if (img.url) {
+            uploadedUrls.push(img.url); // keep already uploaded
+          } else if (typeof img === "string") {
+            uploadedUrls.push(img); // if it's already a URL string
+          }
+        }
+
+        const roomPayload = {
+          hotel_id: hotelId,
+          room_type: rt.room_type || null,
+          hotel_category: rt.hotel_category || null,
+          base_occupancy: rt.base_occupancy
+            ? parseInt(rt.base_occupancy, 10)
+            : null,
+          max_occupancy: rt.max_occupancy
+            ? parseInt(rt.max_occupancy, 10)
+            : null,
+          max_extra_beds: rt.extra_bed_available
+            ? parseInt(rt.extra_bed_available, 10)
+            : null,
+          food: rt.food || false,
+          add_ons: rt.add_ons?.length ? rt.add_ons : null,
+          notes: rt.notes || null,
+          manual_price: rt.manual_price ? parseFloat(rt.manual_price) : null,
+          gallery_urls: uploadedUrls, // ✅ always final URLs
+        };
+
+        const { error: roomError } = await supabase
+          .from("hotel_room_types")
+          .insert(roomPayload);
+
+        if (roomError) throw roomError;
+      }
+
+      // ✅ Reset after save
       resetForm();
       setAddOpen(false);
       setEditHotel(null);
       fetchHotels();
-    } catch (e) {
-      alert(`Error saving hotel: ${e.message}`);
+    } catch (err) {
+      console.error("Error saving hotel:", err);
+      alert("Failed to save hotel. Check console for details.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-  }
+  };
 
   function resetForm() {
     setForm({
@@ -476,6 +626,7 @@ export default function HotelsAdmin() {
       : "";
 
     setEditHotel(hotel);
+
     setForm({
       id: hotel.id,
       route_id: hotel.route_id || "",
@@ -507,14 +658,28 @@ export default function HotelsAdmin() {
       extra_bed_available: hotel.extra_bed_available
         ? hotel.extra_bed_available.toString()
         : "",
+      // ✅ Load room types when editing
+      roomTypes: (hotel.roomTypes || []).map((rt) => ({
+        ...rt,
+        manual_price: rt.manual_price ? rt.manual_price.toString() : "",
+        base_occupancy: rt.base_occupancy ? rt.base_occupancy.toString() : "",
+        max_occupancy: rt.max_occupancy ? rt.max_occupancy.toString() : "",
+        extra_bed_available: rt.max_extra_beds
+          ? rt.max_extra_beds.toString()
+          : "",
+        gallery_urls: rt.gallery_urls
+          ? rt.gallery_urls.map((url) => ({ url, file: null }))
+          : [],
+      })),
     });
+
     setSelectedRouteId(hotel.route_id || "");
     setAddOpen(true);
   }
 
   return (
     <Box sx={{ maxWidth: 1200, mx: "auto", p: 2 }}>
-      <div style={{display:"flex" , justifyContent:"space-between"}}>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
         <Typography variant="h5" gutterBottom>
           Hotels Admin Panel
         </Typography>
@@ -549,24 +714,6 @@ export default function HotelsAdmin() {
               gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
             }}
           >
-            <FormControl fullWidth required>
-              <InputLabel>Route</InputLabel>
-              <Select
-                value={selectedRouteId || ""}
-                onChange={(e) => {
-                  setSelectedRouteId(e.target.value);
-                  setField("route_id", e.target.value);
-                }}
-                label="Route"
-                required
-              >
-                {routes.map((route) => (
-                  <MenuItem key={route.id} value={route.id}>
-                    {route.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
 
             <PlacesAutocompleteInput
               label="Hotel Location"
@@ -608,13 +755,13 @@ export default function HotelsAdmin() {
               onChange={(e) => setField("capacity", e.target.value)}
               type="number"
             />
+
             <TextField
               label="Location"
               value={form.location || ""}
-              onChange={(e) => {
-                const val = e.target.value;
-                setForm((prev) => ({ ...prev, location: val }));
-              }}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, location: e.target.value }))
+              }
               placeholder="Enter hotel location"
             />
 
@@ -622,140 +769,6 @@ export default function HotelsAdmin() {
               label="Contact"
               value={form.service}
               onChange={(e) => setField("service", e.target.value)}
-            />
-
-            <FormControl fullWidth>
-              <InputLabel>Price Range</InputLabel>
-              <Select
-                value={form.max_price_per_room || ""}
-                onChange={(e) => {
-                  setField("max_price_per_room", e.target.value);
-                  setField("manual_price", "");
-                }}
-              >
-                {PRICE_RANGES.map((pr) => (
-                  <MenuItem key={pr.value} value={pr.value}>
-                    {pr.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            {form.max_price_per_room && (
-              <TextField
-                label="Manual Price"
-                type="number"
-                value={form.manual_price}
-                onChange={(e) => setField("manual_price", e.target.value)}
-                fullWidth
-                sx={{ mt: 1 }}
-              />
-            )}
-
-            <FormControl fullWidth disabled={!form.max_price_per_room}>
-              <InputLabel>Category</InputLabel>
-              <Select
-                value={
-                  HOTEL_CONFIG[form.max_price_per_room]?.categories.includes(
-                    form.hotel_category
-                  )
-                    ? form.hotel_category
-                    : ""
-                }
-                onChange={(e) => setField("hotel_category", e.target.value)}
-                label="Category"
-              >
-                {(HOTEL_CONFIG[form.max_price_per_room]?.categories || []).map(
-                  (cat) => (
-                    <MenuItem key={cat} value={cat}>
-                      {cat}
-                    </MenuItem>
-                  )
-                )}
-              </Select>
-            </FormControl>
-
-            <FormControl fullWidth disabled={!form.max_price_per_room}>
-              <InputLabel>Room Type</InputLabel>
-              <Select
-                value={
-                  HOTEL_CONFIG[form.max_price_per_room]?.roomTypes.includes(
-                    form.room_type
-                  )
-                    ? form.room_type
-                    : ""
-                }
-                onChange={(e) => setField("room_type", e.target.value)}
-                label="Room Type"
-              >
-                {(HOTEL_CONFIG[form.max_price_per_room]?.roomTypes || []).map(
-                  (rt) => (
-                    <MenuItem key={rt} value={rt}>
-                      {rt}
-                    </MenuItem>
-                  )
-                )}
-              </Select>
-            </FormControl>
-
-            <FormGroup>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={form.food}
-                    onChange={(e) => setField("food", e.target.checked)}
-                  />
-                }
-                label="Food Available"
-              />
-            </FormGroup>
-
-            <Box>
-              <Typography sx={{ fontWeight: "bold" }}>Add Ons</Typography>
-              <FormGroup row>
-                {(HOTEL_CONFIG[form.max_price_per_room]?.addOns || []).map(
-                  (addon) => (
-                    <FormControlLabel
-                      key={addon}
-                      control={
-                        <Checkbox
-                          checked={form.add_ons.includes(addon)}
-                          onChange={() => {
-                            const newAddOns = form.add_ons.includes(addon)
-                              ? form.add_ons.filter((a) => a !== addon)
-                              : [...form.add_ons, addon];
-                            setField("add_ons", newAddOns);
-                            if (addon !== "Multiple") return;
-                            if (!newAddOns.includes("Multiple")) {
-                              setField("extra_bed_available", "");
-                            }
-                          }}
-                        />
-                      }
-                      label={addon}
-                    />
-                  )
-                )}
-                {form.add_ons.includes("Multiple") && (
-                  <TextField
-                    label="Extra Beds"
-                    value={form.extra_bed_available}
-                    onChange={(e) =>
-                      setField("extra_bed_available", e.target.value)
-                    }
-                    type="number"
-                    sx={{ ml: 1, width: 150 }}
-                  />
-                )}
-              </FormGroup>
-            </Box>
-
-            <TextField
-              label="Notes"
-              value={form.notes}
-              onChange={(e) => setField("notes", e.target.value)}
-              multiline
-              rows={2}
             />
 
             <TextField
@@ -791,33 +804,26 @@ export default function HotelsAdmin() {
               value={form.stay_duration_desc}
               InputProps={{ readOnly: true }}
             />
-
-            <Box>
-              <Button
-                variant="outlined"
-                disabled={form.gallery_urls.length >= 5}
-                component="label"
-              >
+            <Box sx={{ mt: 2 }}>
+              <Button variant="outlined" component="label" sx={{ mb: 1 }}>
                 Upload Images
                 <input
                   hidden
                   multiple
                   accept="image/*"
                   type="file"
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files).slice(
-                      0,
-                      5 - form.gallery_urls.length
-                    );
-                    addImages(files);
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files);
+                    if (files.length === 0) return;
+                    await addImages(files);
                     e.target.value = null;
                   }}
                 />
               </Button>
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1 }}>
-                {form.gallery_urls.map((img, idx) => (
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                {(form.gallery_urls || []).map((img, i) => (
                   <Box
-                    key={idx}
+                    key={i}
                     sx={{
                       position: "relative",
                       width: 100,
@@ -828,7 +834,7 @@ export default function HotelsAdmin() {
                   >
                     <img
                       src={img.url || img}
-                      alt={`img-${idx}`}
+                      alt={`hotel-img-${i}`}
                       style={{
                         width: "100%",
                         height: "100%",
@@ -837,14 +843,14 @@ export default function HotelsAdmin() {
                     />
                     <IconButton
                       size="small"
-                      onClick={() => removeImage(idx)}
+                      onClick={() => removeImage(i)} // call your existing removeImage function
                       sx={{
                         position: "absolute",
-                        top: 2,
-                        right: 2,
-                        bgcolor: "rgba(0,0,0,0.5)",
+                        top: 4,
+                        right: 4,
+                        backgroundColor: "rgba(0,0,0,0.4)",
                         color: "white",
-                        "&:hover": { bgcolor: "rgba(0,0,0,0.7)" },
+                        "&:hover": { backgroundColor: "rgba(0,0,0,0.6)" },
                       }}
                     >
                       <Close fontSize="small" />
@@ -853,28 +859,282 @@ export default function HotelsAdmin() {
                 ))}
               </Box>
             </Box>
+          </Box>
 
-            <Box
-              sx={{
-                gridColumn: "1 / -1",
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 2,
+          {/* ----------- ROOM TYPES SECTION ----------- */}
+          <Box sx={{ mt: 3 }}>
+            <Button
+              variant="outlined"
+              onClick={() =>
+                setForm((prev) => ({
+                  ...prev,
+                  roomTypes: [
+                    ...(prev.roomTypes || []),
+                    {
+                      room_type: "",
+                      hotel_category: "",
+                      manual_price: "",
+                      base_occupancy: "",
+                      max_occupancy: "",
+                      extra_bed_available: "",
+                      food: false,
+                      add_ons: [],
+                      notes: "",
+                      gallery_urls: [],
+                    },
+                  ],
+                }))
+              }
+            >
+              Add Room Type
+            </Button>
+
+            {(form.roomTypes || []).map((room, idx) => (
+              <Paper key={idx} sx={{ p: 2, mt: 2, position: "relative" }}>
+                <IconButton
+                  onClick={() =>
+                    setForm((prev) => ({
+                      ...prev,
+                      roomTypes: prev.roomTypes.filter((_, i) => i !== idx),
+                    }))
+                  }
+                  sx={{ position: "absolute", top: 8, right: 8 }}
+                >
+                  <Delete />
+                </IconButton>
+                <Typography variant="subtitle1">Room Type {idx + 1}</Typography>
+
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 2,
+                    gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+                  }}
+                >
+                  {/* Room Type */}
+                  <TextField
+                    label="Room Type"
+                    value={room.room_type}
+                    onChange={(e) =>
+                      updateRoomType(idx, "room_type", e.target.value)
+                    }
+                  />
+
+                  {/* Category */}
+                  <TextField
+                    label="Category"
+                    value={room.hotel_category}
+                    onChange={(e) =>
+                      updateRoomType(idx, "hotel_category", e.target.value)
+                    }
+                  />
+
+                  {/* Manual Price */}
+                  <TextField
+                    label="Manual Price"
+                    type="number"
+                    value={room.manual_price}
+                    onChange={(e) =>
+                      updateRoomType(idx, "manual_price", e.target.value)
+                    }
+                  />
+
+                  {/* Base Occupancy */}
+                  <TextField
+                    label="Base Occupancy"
+                    type="number"
+                    value={room.base_occupancy}
+                    onChange={(e) =>
+                      updateRoomType(idx, "base_occupancy", e.target.value)
+                    }
+                  />
+
+                  {/* Max Occupancy */}
+                  <TextField
+                    label="Max Occupancy"
+                    type="number"
+                    value={room.max_occupancy}
+                    onChange={(e) =>
+                      updateRoomType(idx, "max_occupancy", e.target.value)
+                    }
+                  />
+
+                  {/* Food Available */}
+                  <FormGroup>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={room.food}
+                          onChange={(e) =>
+                            updateRoomType(idx, "food", e.target.checked)
+                          }
+                        />
+                      }
+                      label="Food Available"
+                    />
+                  </FormGroup>
+
+                  {/* Add Ons */}
+                  {room.food && (
+                    <Box>
+                      <Typography sx={{ fontWeight: "bold" }}>
+                        Add Ons
+                      </Typography>
+                      <FormGroup row>
+                        {["Breakfast", "Lunch", "Dinner", "Multiple"].map(
+                          (addon) => (
+                            <FormControlLabel
+                              key={addon}
+                              control={
+                                <Checkbox
+                                  checked={room.add_ons.includes(addon)}
+                                  onChange={() => {
+                                    const newAddOns = room.add_ons.includes(
+                                      addon
+                                    )
+                                      ? room.add_ons.filter((a) => a !== addon)
+                                      : [...room.add_ons, addon];
+                                    updateRoomType(idx, "add_ons", newAddOns);
+                                    if (
+                                      addon === "Multiple" &&
+                                      !newAddOns.includes("Multiple")
+                                    ) {
+                                      updateRoomType(
+                                        idx,
+                                        "extra_bed_available",
+                                        ""
+                                      );
+                                    }
+                                  }}
+                                />
+                              }
+                              label={addon}
+                            />
+                          )
+                        )}
+
+                        {/* Extra Beds if Multiple selected */}
+                        {room.add_ons.includes("Multiple") && (
+                          <TextField
+                            label="Extra Beds"
+                            type="number"
+                            value={room.extra_bed_available}
+                            onChange={(e) =>
+                              updateRoomType(
+                                idx,
+                                "extra_bed_available",
+                                e.target.value
+                              )
+                            }
+                            sx={{ ml: 1, width: 150 }}
+                          />
+                        )}
+                      </FormGroup>
+                    </Box>
+                  )}
+
+                  {/* Notes */}
+                  <TextField
+                    label="Notes"
+                    multiline
+                    rows={2}
+                    value={room.notes}
+                    onChange={(e) =>
+                      updateRoomType(idx, "notes", e.target.value)
+                    }
+                  />
+
+                  {/* Upload Images */}
+                  <Box>
+                    <Button
+                      variant="outlined"
+                      disabled={room.gallery_urls.length >= 5}
+                      component="label"
+                    >
+                      Upload Images
+                      <input
+                        hidden
+                        multiple
+                        accept="image/*"
+                        type="file"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files).slice(
+                            0,
+                            5 - room.gallery_urls.length
+                          );
+                          addRoomImages(idx, files);
+                          e.target.value = null;
+                        }}
+                      />
+                    </Button>
+                    <Box
+                      sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1 }}
+                    >
+                      {room.gallery_urls.map((img, i) => (
+                        <Box
+                          key={i}
+                          sx={{
+                            position: "relative",
+                            width: 100,
+                            height: 100,
+                            borderRadius: 1,
+                            overflow: "hidden",
+                          }}
+                        >
+                          <img
+                            src={img.url || img}
+                            alt={`room-img-${i}`}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                            }}
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={() => removeRoomImage(idx, i)}
+                            sx={{
+                              position: "absolute",
+                              top: 2,
+                              right: 2,
+                              bgcolor: "rgba(0,0,0,0.5)",
+                              color: "white",
+                              "&:hover": { bgcolor: "rgba(0,0,0,0.7)" },
+                            }}
+                          >
+                            <Close fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                </Box>
+              </Paper>
+            ))}
+          </Box>
+
+          {/* ----------- SAVE & CANCEL ----------- */}
+          <Box
+            sx={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 2,
+              mt: 3,
+            }}
+          >
+            <Button
+              onClick={() => {
+                setAddOpen(false);
+                setEditHotel(null);
+                resetForm();
               }}
             >
-              <Button
-                onClick={() => {
-                  setAddOpen(false);
-                  setEditHotel(null);
-                  resetForm();
-                }}
-              >
-                Cancel
-              </Button>
-              <Button variant="contained" onClick={saveHotel} disabled={saving}>
-                {saving ? "Saving..." : "Save"}
-              </Button>
-            </Box>
+              Cancel
+            </Button>
+            <Button variant="contained" onClick={saveHotel} disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
           </Box>
         </Paper>
       )}
@@ -885,14 +1145,9 @@ export default function HotelsAdmin() {
             <TableHead>
               <TableRow>
                 <TableCell>Name</TableCell>
-                {/* <TableCell>Location</TableCell> */}
-                <TableCell>Room Type</TableCell>
-                <TableCell>Manual Price</TableCell>
-                {/* <TableCell>Check In</TableCell>
-                <TableCell>Check Out</TableCell>
-                <TableCell>Extra Beds</TableCell> */}
+                <TableCell>Room Types</TableCell>
+                <TableCell>Manual Prices</TableCell>
                 <TableCell>Service</TableCell>
-                {/* <TableCell>Add Ons</TableCell> */}
                 <TableCell>Gallery</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
@@ -900,31 +1155,49 @@ export default function HotelsAdmin() {
             <TableBody>
               {hotels.map((hotel) => (
                 <TableRow key={hotel.id}>
+                  {/* ✅ Hotel Name */}
                   <TableCell>{hotel.hotel_name}</TableCell>
-                  {/* <TableCell>{hotel.location}</TableCell> */}
-                  <TableCell>{hotel.room_type}</TableCell>
-                  <TableCell>{hotel.manual_price}</TableCell>
-                  {/* <TableCell>{hotel.check_in_time}</TableCell>
-                  <TableCell>{hotel.check_out_time}</TableCell>
-                  <TableCell>{hotel.extra_bed_available}</TableCell> */}
-                  <TableCell>{hotel.service}</TableCell>
-                  {/* <TableCell>
-                    {hotel.add_ons?.map((a, i) => (
-                      <Chip key={i} label={a} size="small" sx={{ mr: 0.5 }} />
-                    ))}
-                  </TableCell> */}
+
+                  {/* ✅ Show all room types */}
                   <TableCell>
-                    {(hotel.gallery_urls || []).map((url, i) => (
-                      <img
-                        key={i}
-                        src={url}
-                        alt={`gallery-${i}`}
-                        width={40}
-                        height={40}
-                        style={{ marginRight: 4, borderRadius: 4 }}
-                      />
-                    ))}
+                    {hotel.roomTypes?.length > 0
+                      ? hotel.roomTypes.map((rt, i) => (
+                          <div key={i}>{rt.room_type}</div>
+                        ))
+                      : "-"}
                   </TableCell>
+
+                  {/* ✅ Show manual prices for each room type */}
+                  <TableCell>
+                    {hotel.roomTypes?.length > 0
+                      ? hotel.roomTypes.map((rt, i) => (
+                          <div key={i}>
+                            {rt.manual_price ? `₹${rt.manual_price}` : "-"}
+                          </div>
+                        ))
+                      : "-"}
+                  </TableCell>
+
+                  {/* ✅ Service */}
+                  <TableCell>{hotel.service}</TableCell>
+
+                  {/* ✅ Show gallery thumbnails from all room types */}
+                  <TableCell>
+                    {hotel.roomTypes
+                      ?.flatMap((rt) => rt.gallery_urls || [])
+                      .map((url, i) => (
+                        <img
+                          key={i}
+                          src={url}
+                          alt={`gallery-${i}`}
+                          width={40}
+                          height={40}
+                          style={{ marginRight: 4, borderRadius: 4 }}
+                        />
+                      ))}
+                  </TableCell>
+
+                  {/* ✅ Actions */}
                   <TableCell>
                     <Tooltip title="Edit">
                       <IconButton
@@ -937,7 +1210,7 @@ export default function HotelsAdmin() {
                     </Tooltip>
                     <Tooltip title="Preview">
                       <IconButton
-                      size="small"
+                        size="small"
                         color="success"
                         onClick={() => setPreviewHotel(hotel)}
                       >
@@ -946,7 +1219,7 @@ export default function HotelsAdmin() {
                     </Tooltip>
                     <Tooltip title="Delete">
                       <IconButton
-                      size="small"
+                        size="small"
                         color="error"
                         onClick={() => {
                           if (window.confirm("Delete this hotel?")) {
@@ -970,6 +1243,7 @@ export default function HotelsAdmin() {
                   </TableCell>
                 </TableRow>
               ))}
+
               {loading && (
                 <TableRow>
                   <TableCell colSpan={11} align="center">
@@ -990,39 +1264,27 @@ export default function HotelsAdmin() {
       >
         <DialogTitle>{previewHotel?.hotel_name}</DialogTitle>
         <DialogContent dividers>
+          {/* Hotel-level info */}
           <Typography>
             <b>Location:</b> {previewHotel?.location}
-          </Typography>
-          <Typography>
-            <b>Room Type:</b> {previewHotel?.room_type}
-          </Typography>
-          <Typography>
-            <b>Manual Price:</b> {previewHotel?.manual_price}
-          </Typography>
-          <Typography>
-            <b>Check In:</b> {previewHotel?.check_in_time}
-          </Typography>
-          <Typography>
-            <b>Check Out:</b> {previewHotel?.check_out_time}
-          </Typography>
-          <Typography>
-            <b>Extra Beds:</b> {previewHotel?.extra_bed_available}
           </Typography>
           <Typography>
             <b>Service:</b> {previewHotel?.service}
           </Typography>
           <Typography>
-            <b>Add Ons:</b> {(previewHotel?.add_ons || []).join(", ")}
+            <b>Food Available:</b> {previewHotel?.food ? "Yes" : "No"}
           </Typography>
           <Typography>
             <b>Notes:</b> {previewHotel?.notes}
           </Typography>
+
+          {/* Hotel Gallery */}
           <Box sx={{ mt: 2, display: "flex", flexWrap: "wrap", gap: 1 }}>
             {(previewHotel?.gallery_urls || []).map((url, idx) => (
               <img
                 key={idx}
                 src={url}
-                alt={`img-${idx}`}
+                alt={`hotel-img-${idx}`}
                 style={{
                   width: 100,
                   height: 100,
@@ -1032,7 +1294,68 @@ export default function HotelsAdmin() {
               />
             ))}
           </Box>
+
+          {/* Room Types Section */}
+          {previewHotel?.roomTypes?.length > 0 && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Room Types
+              </Typography>
+              {previewHotel.roomTypes.map((rt, i) => (
+                <Paper key={i} sx={{ p: 2, mt: 2 }}>
+                  <Typography variant="subtitle1">
+                    <b>{rt.room_type}</b>
+                  </Typography>
+                  <Typography>
+                    <b>Category:</b> {rt.hotel_category}
+                  </Typography>
+                  <Typography>
+                    <b>Manual Price:</b> {rt.manual_price}
+                  </Typography>
+                  <Typography>
+                    <b>Base Occupancy:</b> {rt.base_occupancy}
+                  </Typography>
+                  <Typography>
+                    <b>Max Occupancy:</b> {rt.max_occupancy}
+                  </Typography>
+                  <Typography>
+                    <b>Extra Beds:</b> {rt.max_extra_beds}
+                  </Typography>
+                  <Typography>
+                    <b>Add Ons:</b> {(rt.add_ons || []).join(", ")}
+                  </Typography>
+                  <Typography>
+                    <b>Notes:</b> {rt.notes}
+                  </Typography>
+                  <Typography>
+                    <b>Check In:</b> {rt.check_in_time}
+                  </Typography>
+                  <Typography>
+                    <b>Check Out:</b> {rt.check_out_time}
+                  </Typography>
+                  <Box
+                    sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 1 }}
+                  >
+                    {(rt.gallery_urls || []).map((url, j) => (
+                      <img
+                        key={j}
+                        src={url.url || url}
+                        alt={`room-${i}-img-${j}`}
+                        style={{
+                          width: 80,
+                          height: 80,
+                          objectFit: "cover",
+                          borderRadius: 6,
+                        }}
+                      />
+                    ))}
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
+          )}
         </DialogContent>
+
         <DialogActions>
           <Button onClick={() => setPreviewHotel(null)}>Close</Button>
         </DialogActions>
