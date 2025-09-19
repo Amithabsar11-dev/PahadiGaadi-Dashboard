@@ -20,12 +20,14 @@ import {
   TableRow,
   IconButton,
   Chip,
+  Card,
   CircularProgress,
   List,
   ListItem,
   ListItemButton,
   ListItemText,
   Tooltip,
+  Grid,
   Dialog,
   DialogActions,
   DialogContent,
@@ -198,6 +200,32 @@ export default function HotelsAdmin() {
   const [editHotel, setEditHotel] = React.useState(null);
   const [locationLatLng, setLocationLatLng] = useState(null);
   const [roomTypes, setRoomTypes] = useState([]);
+  const [foodAvailable, setFoodAvailable] = useState(false);
+  const [zoneClusters, setZoneClusters] = useState([]);
+  const [selectedCluster, setSelectedCluster] = useState("");
+  const [selectedZone, setSelectedZone] = useState("");
+
+  const [foodOptions, setFoodOptions] = useState({
+    breakfast: { selected: false, type: "complimentary", price: "" },
+    lunch: { selected: false, type: "complimentary", price: "" },
+    dinner: { selected: false, type: "complimentary", price: "" },
+  });
+
+  const [extraBedsCount, setExtraBedsCount] = useState("");
+  const [extraBedsType, setExtraBedsType] = useState("complimentary"); // or 'price'
+  const [extraBedsPrice, setExtraBedsPrice] = useState("");
+
+  useEffect(() => {
+    async function fetchZonesClusters() {
+      const { data, error } = await supabase
+        .from("zones_clusters")
+        .select("id, zone_name, cluster_name")
+        .order("zone_name", { ascending: true });
+      if (error) console.error("Error fetching zones_clusters:", error);
+      else setZoneClusters(data);
+    }
+    fetchZonesClusters();
+  }, []);
 
   const [form, setForm] = React.useState({
     id: null,
@@ -224,6 +252,9 @@ export default function HotelsAdmin() {
     stay_duration_hours: "",
     stay_duration_desc: "",
     extra_bed_available: "",
+    amenities: "",
+    amenitiesPriceOption: "",
+    amenitiesPriceValue: "",
   });
 
   React.useEffect(() => {
@@ -329,6 +360,19 @@ export default function HotelsAdmin() {
       setLocationLatLng(null);
     }
   }
+
+  const handleClusterChange = (clusterName) => {
+    setSelectedCluster(clusterName);
+    const matched = zoneClusters.find((zc) => zc.cluster_name === clusterName);
+    const zone = matched ? matched.zone_name : "";
+    setSelectedZone(zone);
+
+    setForm((prev) => ({
+      ...prev,
+      cluster: clusterName,
+      zone: zone,
+    }));
+  };
 
   async function uploadImage(file) {
     const ext = file.name.split(".").pop();
@@ -485,6 +529,14 @@ export default function HotelsAdmin() {
           : null,
         manual_price: form.manual_price ? parseFloat(form.manual_price) : null,
         gallery_urls: form.gallery_urls?.map((g) => (g.url ? g.url : g)) || [],
+        amenities: form.amenities || null,
+        amenities_price_option: form.amenitiesPriceOption || null,
+        amenities_price:
+          form.amenitiesPriceOption === "none"
+            ? null
+            : form.amenitiesPriceValue
+            ? parseFloat(form.amenitiesPriceValue)
+            : null,
       };
 
       let hotelId = editHotel?.id;
@@ -545,14 +597,23 @@ export default function HotelsAdmin() {
           max_occupancy: rt.max_occupancy
             ? parseInt(rt.max_occupancy, 10)
             : null,
-          max_extra_beds: rt.extra_bed_available
-            ? parseInt(rt.extra_bed_available, 10)
+          max_extra_beds: rt.extra_beds_info?.count
+            ? parseInt(rt.extra_beds_info.count, 10)
             : null,
           food: rt.food || false,
-          add_ons: rt.add_ons?.length ? rt.add_ons : null,
+          add_ons: (() => {
+            const addons = [];
+            if (rt.food_options?.breakfast?.selected) addons.push("Breakfast");
+            if (rt.food_options?.lunch?.selected) addons.push("Lunch");
+            if (rt.food_options?.dinner?.selected) addons.push("Dinner");
+            if (rt.extra_beds_info?.count) addons.push("Extra Bed");
+            return addons.length ? addons : null;
+          })(),
           notes: rt.notes || null,
           manual_price: rt.manual_price ? parseFloat(rt.manual_price) : null,
-          gallery_urls: uploadedUrls, // ✅ always final URLs
+          gallery_urls: uploadedUrls,
+          food_options: rt.food_options || null,
+          extra_beds_info: rt.extra_beds_info || null,
         };
 
         const { error: roomError } = await supabase
@@ -601,6 +662,9 @@ export default function HotelsAdmin() {
       stay_duration_hours: "",
       stay_duration_desc: "",
       extra_bed_available: "",
+      amenities: "",
+      amenitiesPriceOption: "",
+      amenitiesPriceValue: "",
     });
     setZoneError("");
     setLocationCoords(null);
@@ -658,7 +722,11 @@ export default function HotelsAdmin() {
       extra_bed_available: hotel.extra_bed_available
         ? hotel.extra_bed_available.toString()
         : "",
-      // ✅ Load room types when editing
+      amenities: hotel.amenities || "",
+      amenitiesPriceOption: hotel.amenities_price_option || "",
+      amenitiesPriceValue: hotel.amenities_price
+        ? hotel.amenities_price.toString()
+        : "",
       roomTypes: (hotel.roomTypes || []).map((rt) => ({
         ...rt,
         manual_price: rt.manual_price ? rt.manual_price.toString() : "",
@@ -714,6 +782,12 @@ export default function HotelsAdmin() {
               gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
             }}
           >
+            <TextField
+              label="Hotel Name"
+              value={form.hotel_name}
+              onChange={(e) => setField("hotel_name", e.target.value)}
+              required
+            />
 
             <PlacesAutocompleteInput
               label="Hotel Location"
@@ -722,24 +796,13 @@ export default function HotelsAdmin() {
               placeholder="Search location"
             />
 
-            {zoneError && <Typography color="error">{zoneError}</Typography>}
-
             <TextField
-              label="Zone"
-              value={form.zone || ""}
-              InputProps={{ readOnly: true }}
-            />
-            <TextField
-              label="Cluster"
-              value={form.cluster || ""}
-              InputProps={{ readOnly: true }}
-            />
-
-            <TextField
-              label="Hotel Name"
-              value={form.hotel_name}
-              onChange={(e) => setField("hotel_name", e.target.value)}
-              required
+              label="Address"
+              value={form.location || ""}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, location: e.target.value }))
+              }
+              placeholder="Enter hotel Address"
             />
 
             <TextField
@@ -748,27 +811,55 @@ export default function HotelsAdmin() {
               onChange={(e) => setField("rating", e.target.value)}
               type="number"
             />
-
+            {/* 
             <TextField
               label="Capacity"
               value={form.capacity}
               onChange={(e) => setField("capacity", e.target.value)}
               type="number"
-            />
-
-            <TextField
-              label="Location"
-              value={form.location || ""}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, location: e.target.value }))
-              }
-              placeholder="Enter hotel location"
-            />
+            /> */}
 
             <TextField
               label="Contact"
               value={form.service}
               onChange={(e) => setField("service", e.target.value)}
+            />
+            {zoneError && <Typography color="error">{zoneError}</Typography>}
+
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel id="cluster-select-label">Cluster</InputLabel>
+              <Select
+                labelId="cluster-select-label"
+                value={selectedCluster}
+                label="Cluster"
+                onChange={(e) => {
+                  const clusterName = e.target.value;
+                  setSelectedCluster(clusterName);
+                  // Also auto-select zone based on cluster
+                  const matched = zoneClusters.find(
+                    (zc) => zc.cluster_name === clusterName
+                  );
+                  if (matched) setSelectedZone(matched.zone_name);
+                  else setSelectedZone("");
+                }}
+              >
+                <MenuItem value="">
+                  <em>Select Cluster</em>
+                </MenuItem>
+                {zoneClusters.map((zc) => (
+                  <MenuItem key={zc.id} value={zc.cluster_name}>
+                    {zc.cluster_name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <TextField
+              label="Zone"
+              value={selectedZone}
+              fullWidth
+              InputProps={{ readOnly: true }}
+              sx={{ mt: 2 }}
             />
 
             <TextField
@@ -779,7 +870,6 @@ export default function HotelsAdmin() {
               InputLabelProps={{ shrink: true }}
               inputProps={{ step: 300 }}
               fullWidth
-              sx={{ mt: 2 }}
             />
 
             <TextField
@@ -790,7 +880,6 @@ export default function HotelsAdmin() {
               InputLabelProps={{ shrink: true }}
               inputProps={{ step: 300 }}
               fullWidth
-              sx={{ mt: 2 }}
             />
 
             <TextField
@@ -804,9 +893,64 @@ export default function HotelsAdmin() {
               value={form.stay_duration_desc}
               InputProps={{ readOnly: true }}
             />
+            <TextField
+              label="Amenities"
+              value={form.amenities || ""}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, amenities: e.target.value }))
+              }
+              fullWidth
+            />
+            {form.amenities && form.amenities.trim() !== "" && (
+              <>
+                <FormControl fullWidth>
+                  <InputLabel id="amenities-price-option-label">
+                    Price
+                  </InputLabel>
+                  <Select
+                    labelId="amenities-price-option-label"
+                    value={form.amenitiesPriceOption || ""}
+                    label="Price"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setForm((prev) => ({
+                        ...prev,
+                        amenitiesPriceOption: val,
+                        amenitiesPriceValue:
+                          val === "none" ? "" : prev.amenitiesPriceValue,
+                      }));
+                    }}
+                  >
+                    <MenuItem value="price per person">
+                      Price per person
+                    </MenuItem>
+                    <MenuItem value="all">All</MenuItem>
+                    <MenuItem value="none">None</MenuItem>
+                  </Select>
+                </FormControl>
+
+                {(form.amenitiesPriceOption === "price per person" ||
+                  form.amenitiesPriceOption === "all") && (
+                  <TextField
+                    label="Price Value"
+                    value={form.amenitiesPriceValue || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        amenitiesPriceValue: e.target.value,
+                      }))
+                    }
+                    type="number"
+                    fullWidth
+                    inputProps={{ min: 0 }}
+                  />
+                )}
+              </>
+            )}
+
             <Box sx={{ mt: 2 }}>
               <Button variant="outlined" component="label" sx={{ mb: 1 }}>
-                Upload Images
+                Upload Hotel Images
                 <input
                   hidden
                   multiple
@@ -958,9 +1102,97 @@ export default function HotelsAdmin() {
                       updateRoomType(idx, "max_occupancy", e.target.value)
                     }
                   />
+                  {/* Extra Beds */}
+                  <Box sx={{ mt: 3 }}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={!!room.extra_beds_info}
+                          onChange={(e) =>
+                            updateRoomType(
+                              idx,
+                              "extra_beds_info",
+                              e.target.checked ? {} : null
+                            )
+                          }
+                        />
+                      }
+                      label="Extra Beds"
+                    />
+
+                    {room.extra_beds_info && (
+                      <Card
+                        variant="outlined"
+                        sx={{ mt: 2, p: 2, borderRadius: 2, boxShadow: 1 }}
+                      >
+                        <Typography
+                          variant="subtitle1"
+                          sx={{ fontWeight: "bold", mb: 2 }}
+                        >
+                          Extra Beds Options
+                        </Typography>
+
+                        <Grid container spacing={2}>
+                          <Grid item xs={12} md={4}>
+                            <TextField
+                              label="Extra Beds Count"
+                              type="number"
+                              fullWidth
+                              value={room.extra_beds_info.count || ""}
+                              onChange={(e) =>
+                                updateRoomType(idx, "extra_beds_info", {
+                                  ...room.extra_beds_info,
+                                  count: e.target.value,
+                                })
+                              }
+                            />
+                          </Grid>
+
+                          <Grid item xs={12} md={4}>
+                            <FormControl fullWidth>
+                              <InputLabel>Type</InputLabel>
+                              <Select
+                                value={
+                                  room.extra_beds_info.type || "complimentary"
+                                }
+                                onChange={(e) =>
+                                  updateRoomType(idx, "extra_beds_info", {
+                                    ...room.extra_beds_info,
+                                    type: e.target.value,
+                                  })
+                                }
+                              >
+                                <MenuItem value="complimentary">
+                                  Complimentary
+                                </MenuItem>
+                                <MenuItem value="price">Price</MenuItem>
+                              </Select>
+                            </FormControl>
+                          </Grid>
+
+                          {room.extra_beds_info.type === "price" && (
+                            <Grid item xs={12} md={4}>
+                              <TextField
+                                label="Price per Extra Bed"
+                                type="number"
+                                fullWidth
+                                value={room.extra_beds_info.price || ""}
+                                onChange={(e) =>
+                                  updateRoomType(idx, "extra_beds_info", {
+                                    ...room.extra_beds_info,
+                                    price: e.target.value,
+                                  })
+                                }
+                              />
+                            </Grid>
+                          )}
+                        </Grid>
+                      </Card>
+                    )}
+                  </Box>
 
                   {/* Food Available */}
-                  <FormGroup>
+                  <FormGroup sx={{ mt: 3 }}>
                     <FormControlLabel
                       control={
                         <Checkbox
@@ -974,62 +1206,118 @@ export default function HotelsAdmin() {
                     />
                   </FormGroup>
 
-                  {/* Add Ons */}
+                  {/* Food Options */}
                   {room.food && (
-                    <Box>
-                      <Typography sx={{ fontWeight: "bold" }}>
-                        Add Ons
+                    <Box sx={{ mt: 2 }}>
+                      <Typography sx={{ fontWeight: "bold", mb: 1 }}>
+                        Food Options
                       </Typography>
-                      <FormGroup row>
-                        {["Breakfast", "Lunch", "Dinner", "Multiple"].map(
-                          (addon) => (
-                            <FormControlLabel
-                              key={addon}
-                              control={
-                                <Checkbox
-                                  checked={room.add_ons.includes(addon)}
-                                  onChange={() => {
-                                    const newAddOns = room.add_ons.includes(
-                                      addon
-                                    )
-                                      ? room.add_ons.filter((a) => a !== addon)
-                                      : [...room.add_ons, addon];
-                                    updateRoomType(idx, "add_ons", newAddOns);
-                                    if (
-                                      addon === "Multiple" &&
-                                      !newAddOns.includes("Multiple")
-                                    ) {
-                                      updateRoomType(
-                                        idx,
-                                        "extra_bed_available",
-                                        ""
-                                      );
-                                    }
-                                  }}
-                                />
-                              }
-                              label={addon}
-                            />
-                          )
-                        )}
 
-                        {/* Extra Beds if Multiple selected */}
-                        {room.add_ons.includes("Multiple") && (
-                          <TextField
-                            label="Extra Beds"
-                            type="number"
-                            value={room.extra_bed_available}
-                            onChange={(e) =>
-                              updateRoomType(
-                                idx,
-                                "extra_bed_available",
-                                e.target.value
-                              )
+                      <FormGroup row>
+                        {["Breakfast", "Lunch", "Dinner"].map((meal) => (
+                          <FormControlLabel
+                            key={meal}
+                            control={
+                              <Checkbox
+                                checked={
+                                  room.food_options?.[meal.toLowerCase()]
+                                    ?.selected || false
+                                }
+                                onChange={(e) => {
+                                  const updated = {
+                                    ...(room.food_options || {}),
+                                    [meal.toLowerCase()]: {
+                                      ...(room.food_options?.[
+                                        meal.toLowerCase()
+                                      ] || {}),
+                                      selected: e.target.checked,
+                                    },
+                                  };
+                                  updateRoomType(idx, "food_options", updated);
+                                }}
+                              />
                             }
-                            sx={{ ml: 1, width: 150 }}
+                            label={meal}
                           />
-                        )}
+                        ))}
                       </FormGroup>
+
+                      <Grid container spacing={2} sx={{ mt: 1 }}>
+                        {["breakfast", "lunch", "dinner"].map(
+                          (meal) =>
+                            room.food_options?.[meal]?.selected && (
+                              <Grid item xs={12} md={4} key={meal}>
+                                <Card
+                                  variant="outlined"
+                                  sx={{ p: 2, borderRadius: 2, boxShadow: 1 }}
+                                >
+                                  <Typography
+                                    variant="subtitle2"
+                                    sx={{ fontWeight: "bold", mb: 2 }}
+                                  >
+                                    {meal.charAt(0).toUpperCase() +
+                                      meal.slice(1)}{" "}
+                                    Options
+                                  </Typography>
+
+                                  <FormControl fullWidth sx={{ mb: 2 }}>
+                                    <InputLabel>Type</InputLabel>
+                                    <Select
+                                      value={
+                                        room.food_options[meal].type ||
+                                        "complimentary"
+                                      }
+                                      onChange={(e) => {
+                                        const updated = {
+                                          ...room.food_options,
+                                          [meal]: {
+                                            ...room.food_options[meal],
+                                            type: e.target.value,
+                                          },
+                                        };
+                                        updateRoomType(
+                                          idx,
+                                          "food_options",
+                                          updated
+                                        );
+                                      }}
+                                    >
+                                      <MenuItem value="complimentary">
+                                        Complimentary
+                                      </MenuItem>
+                                      <MenuItem value="price">Price</MenuItem>
+                                    </Select>
+                                  </FormControl>
+
+                                  {room.food_options[meal].type === "price" && (
+                                    <TextField
+                                      label={`Price per person (${meal})`}
+                                      type="number"
+                                      fullWidth
+                                      value={
+                                        room.food_options[meal].price || ""
+                                      }
+                                      onChange={(e) => {
+                                        const updated = {
+                                          ...room.food_options,
+                                          [meal]: {
+                                            ...room.food_options[meal],
+                                            price: e.target.value,
+                                          },
+                                        };
+                                        updateRoomType(
+                                          idx,
+                                          "food_options",
+                                          updated
+                                        );
+                                      }}
+                                    />
+                                  )}
+                                </Card>
+                              </Grid>
+                            )
+                        )}
+                      </Grid>
                     </Box>
                   )}
 
@@ -1138,124 +1426,124 @@ export default function HotelsAdmin() {
           </Box>
         </Paper>
       )}
-
-      <Paper>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Room Types</TableCell>
-                <TableCell>Manual Prices</TableCell>
-                <TableCell>Service</TableCell>
-                <TableCell>Gallery</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {hotels.map((hotel) => (
-                <TableRow key={hotel.id}>
-                  {/* ✅ Hotel Name */}
-                  <TableCell>{hotel.hotel_name}</TableCell>
-
-                  {/* ✅ Show all room types */}
-                  <TableCell>
-                    {hotel.roomTypes?.length > 0
-                      ? hotel.roomTypes.map((rt, i) => (
-                          <div key={i}>{rt.room_type}</div>
-                        ))
-                      : "-"}
-                  </TableCell>
-
-                  {/* ✅ Show manual prices for each room type */}
-                  <TableCell>
-                    {hotel.roomTypes?.length > 0
-                      ? hotel.roomTypes.map((rt, i) => (
-                          <div key={i}>
-                            {rt.manual_price ? `₹${rt.manual_price}` : "-"}
-                          </div>
-                        ))
-                      : "-"}
-                  </TableCell>
-
-                  {/* ✅ Service */}
-                  <TableCell>{hotel.service}</TableCell>
-
-                  {/* ✅ Show gallery thumbnails from all room types */}
-                  <TableCell>
-                    {hotel.roomTypes
-                      ?.flatMap((rt) => rt.gallery_urls || [])
-                      .map((url, i) => (
-                        <img
-                          key={i}
-                          src={url}
-                          alt={`gallery-${i}`}
-                          width={40}
-                          height={40}
-                          style={{ marginRight: 4, borderRadius: 4 }}
-                        />
-                      ))}
-                  </TableCell>
-
-                  {/* ✅ Actions */}
-                  <TableCell>
-                    <Tooltip title="Edit">
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => editHotelFunction(hotel)}
-                      >
-                        <Edit />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Preview">
-                      <IconButton
-                        size="small"
-                        color="success"
-                        onClick={() => setPreviewHotel(hotel)}
-                      >
-                        <Visibility />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => {
-                          if (window.confirm("Delete this hotel?")) {
-                            supabase
-                              .from("hotels_model")
-                              .delete()
-                              .eq("id", hotel.id)
-                              .then(({ error }) => {
-                                if (error) alert(error.message);
-                                else
-                                  setHotels(
-                                    hotels.filter((h) => h.id !== hotel.id)
-                                  );
-                              });
-                          }
-                        }}
-                      >
-                        <Delete />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
-
-              {loading && (
+      {!addOpen && (
+        <Paper>
+          <TableContainer>
+            <Table>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={11} align="center">
-                    <CircularProgress />
-                  </TableCell>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Room Types</TableCell>
+                  <TableCell>Manual Prices</TableCell>
+                  <TableCell>Service</TableCell>
+                  <TableCell>Gallery</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
+              </TableHead>
+              <TableBody>
+                {hotels.map((hotel) => (
+                  <TableRow key={hotel.id}>
+                    {/* ✅ Hotel Name */}
+                    <TableCell>{hotel.hotel_name}</TableCell>
 
+                    {/* ✅ Show all room types */}
+                    <TableCell>
+                      {hotel.roomTypes?.length > 0
+                        ? hotel.roomTypes.map((rt, i) => (
+                            <div key={i}>{rt.room_type}</div>
+                          ))
+                        : "-"}
+                    </TableCell>
+
+                    {/* ✅ Show manual prices for each room type */}
+                    <TableCell>
+                      {hotel.roomTypes?.length > 0
+                        ? hotel.roomTypes.map((rt, i) => (
+                            <div key={i}>
+                              {rt.manual_price ? `₹${rt.manual_price}` : "-"}
+                            </div>
+                          ))
+                        : "-"}
+                    </TableCell>
+
+                    {/* ✅ Service */}
+                    <TableCell>{hotel.service}</TableCell>
+
+                    {/* ✅ Show gallery thumbnails from all room types */}
+                    <TableCell>
+                      {hotel.roomTypes
+                        ?.flatMap((rt) => rt.gallery_urls || [])
+                        .map((url, i) => (
+                          <img
+                            key={i}
+                            src={url}
+                            alt={`gallery-${i}`}
+                            width={40}
+                            height={40}
+                            style={{ marginRight: 4, borderRadius: 4 }}
+                          />
+                        ))}
+                    </TableCell>
+
+                    {/* ✅ Actions */}
+                    <TableCell>
+                      <Tooltip title="Edit">
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => editHotelFunction(hotel)}
+                        >
+                          <Edit />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Preview">
+                        <IconButton
+                          size="small"
+                          color="success"
+                          onClick={() => setPreviewHotel(hotel)}
+                        >
+                          <Visibility />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => {
+                            if (window.confirm("Delete this hotel?")) {
+                              supabase
+                                .from("hotels_model")
+                                .delete()
+                                .eq("id", hotel.id)
+                                .then(({ error }) => {
+                                  if (error) alert(error.message);
+                                  else
+                                    setHotels(
+                                      hotels.filter((h) => h.id !== hotel.id)
+                                    );
+                                });
+                            }
+                          }}
+                        >
+                          <Delete />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+
+                {loading && (
+                  <TableRow>
+                    <TableCell colSpan={11} align="center">
+                      <CircularProgress />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
       <Dialog
         open={Boolean(previewHotel)}
         onClose={() => setPreviewHotel(null)}

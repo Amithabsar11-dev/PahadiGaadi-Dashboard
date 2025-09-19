@@ -20,6 +20,7 @@ import DriverProfilesScreen from "../Pages/DriverProfilesScreen";
 import CustomerProfilesScreen from "../Pages/CustomerProfilesScreen";
 import BookingRequests from "../Pages/BookingRequests";
 import AddOnsManagement from "../Pages/AddOnsManagement";
+import ZonesClusters from "../Pages/ZonesClusters";
 import { Navigate } from "react-router-dom";
 
 const routes = [
@@ -49,6 +50,7 @@ const routes = [
       { path: "customers", element: <CustomerProfilesScreen /> },
       { path: "partner-verification", element: <PartnerVerificationList /> },
       { path: "partner-documents/:id", element: <PartnerDocuments /> },
+      { path: "ZonesClusters", element: <ZonesClusters /> },
     ],
       },
 ];

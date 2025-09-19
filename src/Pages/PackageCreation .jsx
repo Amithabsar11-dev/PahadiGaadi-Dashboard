@@ -5,6 +5,8 @@ import {
   MenuItem,
   Select,
   FormControl,
+  FormGroup,
+  FormControlLabel,
   InputLabel,
   Paper,
   Chip,
@@ -38,10 +40,10 @@ const PACKAGE_CATEGORIES = [
 ];
 
 const PACKAGE_TYPES = [
-  { label: "Quick (8 days)", value: "quick", days: 8 },
-  { label: "Normal (11 days)", value: "normal", days: 11 },
-  { label: "Relax (14 days)", value: "relax", days: 14 },
-  { label: "Trekkers (12 days)", value: "trekkers", days: 12 },
+  { label: "Quick ", value: "quick", days: 8 },
+  { label: "Normal ", value: "normal", days: 11 },
+  { label: "Relax", value: "relax", days: 14 },
+  { label: "Trekkers", value: "trekkers", days: 12 },
 ];
 
 export default function PackageCreation() {
@@ -495,13 +497,19 @@ export default function PackageCreation() {
     let grandSightseeingTotal = 0;
     let grandHotelTotal = 0;
 
-    // 🚩 FIX: keep add-ons total outside of day loop
+    //keep add-ons total outside of day loop
     let grandAddOnsTotal = 0;
+    const seenAddOns = new Set();
 
     // package-level add-ons
     for (const addOnId of packageAddOns) {
-      const item = availableAddOns.find((a) => a.id === addOnId);
-      if (item) grandAddOnsTotal += parseFloat(item.price) || 0;
+      if (!seenAddOns.has(addOnId)) {
+        const item = availableAddOns.find((a) => a.id === addOnId);
+        if (item) {
+          grandAddOnsTotal += parseFloat(item.price) || 0;
+          seenAddOns.add(addOnId);
+        }
+      }
     }
 
     // day-level add-ons
@@ -510,8 +518,13 @@ export default function PackageCreation() {
       if (day.finalizedAddOns) {
         for (const addOnIds of Object.values(day.finalizedAddOns)) {
           for (const addOnId of addOnIds) {
-            const item = availableAddOns.find((a) => a.id === addOnId);
-            if (item) grandAddOnsTotal += parseFloat(item.price) || 0;
+            if (!seenAddOns.has(addOnId)) {
+              const item = availableAddOns.find((a) => a.id === addOnId);
+              if (item) {
+                grandAddOnsTotal += parseFloat(item.price) || 0;
+                seenAddOns.add(addOnId);
+              }
+            }
           }
         }
       }
@@ -535,20 +548,21 @@ export default function PackageCreation() {
       // sightseeing
       let daySightseeingTotal = 0;
       const daySightseeingDetails = [];
+
       for (const [pointId, sightseeingId] of Object.entries(
         day.finalizedSightseeing
       )) {
-        const sList = day.availableSightseeing[pointId] || [];
-        const sItem = sList.find((s) => s.id === sightseeingId);
+        const sightList = day.availableSightseeing[pointId] || [];
+        const sItem = sightList.find((s) => s.id === sightseeingId);
+
         if (sItem) {
-          const feesAdult = parseFloat(sItem.fees_adult) || 0;
-          const feesChild = parseFloat(sItem.fees_child) || 0;
+          const feesAdult = parseFloat(sItem.feesadult) || 0;
+          const feesChild = parseFloat(sItem.feeschild) || 0;
           const totalFees = feesAdult + feesChild;
           daySightseeingTotal += totalFees;
+
           daySightseeingDetails.push({
-            pointName:
-              routePoints.find((p) => p.id === pointId)?.name || "Unknown",
-            sightseeingName: sItem.place_name,
+            sightseeingName: sItem.placename || sItem.name || "Sightseeing",
             feesAdult,
             feesChild,
             totalFees,
@@ -562,15 +576,8 @@ export default function PackageCreation() {
       for (const [pointId, hotelId] of Object.entries(day.finalizedHotel)) {
         const hList = day.availableHotels[pointId] || [];
         const hItem = hList.find((h) => h.id === hotelId);
-        if (hItem && hItem.manual_price) {
-          const manualPriceNum = parseFloat(hItem.manual_price) || 0;
-          dayHotelTotal += manualPriceNum;
-          dayHotelDetails.push({
-            pointName:
-              routePoints.find((p) => p.id === pointId)?.name || "Unknown",
-            hotelName: hItem.hotel_name,
-            price: manualPriceNum,
-          });
+        if (hItem && hItem.manualprice) {
+          dayHotelTotal += parseFloat(hItem.manualprice) || 0;
         }
       }
 
@@ -656,7 +663,6 @@ export default function PackageCreation() {
         setSelectedVehicles(pkg.package_vehicles.map((pv) => pv.vehicle.id));
       }
 
-      // ✅ add-ons
       if (pkg.package_add_ons && pkg.package_add_ons.length > 0) {
         setPackageAddOns(pkg.package_add_ons.map((pa) => pa.add_on.id));
       }
@@ -672,26 +678,59 @@ export default function PackageCreation() {
           const availableSightseeing = {};
           const availableHotels = {};
 
-          // preload sightseeing + hotels + modes
+          // Group sightseeing and hotels separately per point as arrays (for multi-select)
           day.package_day_points.forEach((pt) => {
+            // Sightseeing - gather all sightseeing ids for this point
             if (pt.sightseeing) {
-              finalizedSightseeing[pt.point_id] = pt.sightseeing.id;
-              pointModes[pt.point_id] = "sightseeing";
+              if (!finalizedSightseeing[pt.point_id])
+                finalizedSightseeing[pt.point_id] = [];
+              if (Array.isArray(pt.sightseeing)) {
+                finalizedSightseeing[pt.point_id].push(
+                  ...pt.sightseeing.map((s) => s.id)
+                );
+              } else {
+                finalizedSightseeing[pt.point_id].push(pt.sightseeing.id);
+              }
+              pointModes[pt.point_id] = pointModes[pt.point_id] || [];
+              if (!pointModes[pt.point_id].includes("sightseeing")) {
+                pointModes[pt.point_id].push("sightseeing");
+              }
 
-              // make sure dropdown has the selected sightseeing option
-              availableSightseeing[pt.point_id] = [pt.sightseeing];
+              availableSightseeing[pt.point_id] =
+                availableSightseeing[pt.point_id] || [];
+              availableSightseeing[pt.point_id].push(pt.sightseeing);
             }
+
+            // Hotel - gather all hotel ids for this point
             if (pt.hotel) {
-              finalizedHotel[pt.point_id] = pt.hotel.id;
-              pointModes[pt.point_id] = "stay";
+              if (!finalizedHotel[pt.point_id])
+                finalizedHotel[pt.point_id] = [];
+              if (Array.isArray(pt.hotel)) {
+                finalizedHotel[pt.point_id].push(...pt.hotel.map((h) => h.id));
+              } else {
+                finalizedHotel[pt.point_id].push(pt.hotel.id);
+              }
+              pointModes[pt.point_id] = pointModes[pt.point_id] || [];
+              if (!pointModes[pt.point_id].includes("stay")) {
+                pointModes[pt.point_id].push("stay");
+              }
 
-              // make sure dropdown has the selected hotel option
-              availableHotels[pt.point_id] = [pt.hotel];
+              availableHotels[pt.point_id] = availableHotels[pt.point_id] || [];
+              availableHotels[pt.point_id].push(pt.hotel);
             }
+
+            // For others addon mode - gather from add_ons linked to the point
             if (pt.mode === "others") {
-              pointModes[pt.point_id] = "others";
+              pointModes[pt.point_id] = pointModes[pt.point_id] || [];
+              if (!pointModes[pt.point_id].includes("others")) {
+                pointModes[pt.point_id].push("others");
+              }
+
+              // Collect add-ons linked to this point
               finalizedAddOns[pt.point_id] =
-                day.package_add_ons?.map((ao) => ao.add_on.id) || [];
+                day.package_add_ons
+                  ?.filter((ao) => ao.package_day_point_id === pt.id)
+                  .map((ao) => ao.add_on.id) || [];
             }
           });
 
@@ -935,19 +974,51 @@ export default function PackageCreation() {
 
         const dayDbId = dayData.id;
 
-        const dayPointsData = day.selectedPoints.map((p) => ({
-          package_day_id: dayDbId,
-          point_id: p.id,
-          mode: day.pointModes[p.id] || null,
-          sightseeing_id: day.finalizedSightseeing[p.id] || null,
-          hotel_id: day.finalizedHotel[p.id] || null,
-        }));
-
-        if (dayPointsData.length) {
-          const { error: pointsErr } = await supabase
+        for (const p of day.selectedPoints) {
+          // Insert base day point without sightseeing or hotel
+          const { data: dayPointData, error: dayPointErr } = await supabase
             .from("package_day_points")
-            .insert(dayPointsData);
-          if (pointsErr) throw pointsErr;
+            .insert({
+              package_day_id: dayDbId,
+              point_id: p.id,
+              mode: day.pointModes[p.id] || null,
+            })
+            .select()
+            .single();
+
+          if (dayPointErr) throw dayPointErr;
+
+          const dayPointId = dayPointData.id;
+
+          // Insert multiple sightseeing rows for this day point
+          const sightseeingIds = day.finalizedSightseeing[p.id] || [];
+          if (sightseeingIds.length > 0) {
+            const sightseeingRows = sightseeingIds.map((sid) => ({
+              package_day_point_id: dayPointId,
+              sightseeing_id: sid,
+            }));
+
+            const { error: sightError } = await supabase
+              .from("package_day_point_sightseeing")
+              .insert(sightseeingRows);
+
+            if (sightError) throw sightError;
+          }
+
+          // Insert multiple hotel rows for this day point
+          const hotelIds = day.finalizedHotel[p.id] || [];
+          if (hotelIds.length > 0) {
+            const hotelRows = hotelIds.map((hid) => ({
+              package_day_point_id: dayPointId,
+              hotel_id: hid,
+            }));
+
+            const { error: hotelError } = await supabase
+              .from("package_day_point_hotels")
+              .insert(hotelRows);
+
+            if (hotelError) throw hotelError;
+          }
         }
 
         // 📌 Insert day-level add-ons
@@ -1277,41 +1348,98 @@ export default function PackageCreation() {
                         {pt.name}
                       </Typography>
 
-                      <FormControl sx={{ minWidth: 220, mr: 2 }}>
-                        <InputLabel>Option</InputLabel>
-                        <Select
-                          value={day.pointModes[pt.id] || ""}
-                          label="Option"
-                          onChange={(e) =>
-                            handlePointModeChange(dayIdx, pt, e.target.value)
-                          }
-                          disabled={loading}
-                        >
-                          <MenuItem value="sightseeing">Sightseeing</MenuItem>
-                          <MenuItem value="stay">Stay (Hotel)</MenuItem>
-                          <MenuItem value="others">others</MenuItem>
-                        </Select>
+                      {/* Checkboxes for modes to allow multi-select */}
+                      <FormControl component="fieldset" sx={{ mb: 2, ml: 1 }}>
+                        <FormGroup row>
+                          {["sightseeing", "stay", "others"].map((mode) => (
+                            <FormControlLabel
+                              key={mode}
+                              control={
+                                <Checkbox
+                                  checked={
+                                    day.pointModes[pt.id]?.includes(mode) ||
+                                    false
+                                  }
+                                  onChange={(e) => {
+                                    const currentModes =
+                                      day.pointModes[pt.id] || [];
+                                    let newModes = [];
+                                    if (e.target.checked) {
+                                      newModes = [...currentModes, mode];
+                                    } else {
+                                      newModes = currentModes.filter(
+                                        (m) => m !== mode
+                                      );
+                                    }
+                                    const newDays = [...days];
+                                    if (!newDays[dayIdx].pointModes)
+                                      newDays[dayIdx].pointModes = {};
+                                    newDays[dayIdx].pointModes[pt.id] =
+                                      newModes;
+                                    setDays(newDays);
+                                  }}
+                                  disabled={loading}
+                                />
+                              }
+                              label={
+                                mode.charAt(0).toUpperCase() + mode.slice(1)
+                              }
+                            />
+                          ))}
+                        </FormGroup>
                       </FormControl>
 
-                      {day.pointModes[pt.id] === "sightseeing" && (
-                        <FormControl sx={{ minWidth: 280, ml: 2 }}>
+                      {/* For each selected mode render multi-select checkboxes */}
+
+                      {/* Sightseeing multi-select */}
+                      {day.pointModes[pt.id]?.includes("sightseeing") && (
+                        <FormControl sx={{ minWidth: 280, ml: 2, mb: 2 }}>
                           <InputLabel>Select Sightseeing</InputLabel>
                           <Select
-                            value={day.finalizedSightseeing[pt.id] || ""}
-                            label="Select Sightseeing"
-                            onChange={(e) =>
-                              handleFinalizeSightseeing(
-                                dayIdx,
-                                pt,
-                                e.target.value
-                              )
-                            }
+                            multiple
+                            value={day.finalizedSightseeing?.[pt.id] || []}
+                            onChange={(e) => {
+                              const newDays = [...days];
+                              if (!newDays[dayIdx].finalizedSightseeing)
+                                newDays[dayIdx].finalizedSightseeing = {};
+                              newDays[dayIdx].finalizedSightseeing[pt.id] =
+                                e.target.value;
+                              setDays(newDays);
+                            }}
+                            input={<OutlinedInput label="Select Sightseeing" />}
+                            renderValue={(selected) => (
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: 1,
+                                }}
+                              >
+                                {selected.map((id) => {
+                                  const s = (
+                                    day.availableSightseeing?.[pt.id] || []
+                                  ).find((x) => x.id === id);
+                                  return s ? (
+                                    <Chip key={id} label={s.place_name} />
+                                  ) : null;
+                                })}
+                              </Box>
+                            )}
                             disabled={loading}
                           >
-                            {(day.availableSightseeing[pt.id] || []).map(
+                            {(day.availableSightseeing?.[pt.id] || []).map(
                               (s) => (
                                 <MenuItem key={s.id} value={s.id}>
-                                  {s.place_name} {s.mode ? `(${s.mode})` : ""}
+                                  <Checkbox
+                                    checked={(
+                                      day.finalizedSightseeing?.[pt.id] || []
+                                    ).includes(s.id)}
+                                  />
+                                  <ListItemText
+                                    primary={`${s.place_name} ${
+                                      s.mode ? `(${s.mode})` : ""
+                                    }`}
+                                  />
                                 </MenuItem>
                               )
                             )}
@@ -1319,28 +1447,59 @@ export default function PackageCreation() {
                         </FormControl>
                       )}
 
-                      {day.pointModes[pt.id] === "stay" && (
-                        <FormControl sx={{ minWidth: 280, ml: 2 }}>
-                          <InputLabel>Select Hotel</InputLabel>
+                      {/* Hotel multi-select */}
+                      {day.pointModes[pt.id]?.includes("stay") && (
+                        <FormControl sx={{ minWidth: 280, ml: 2, mb: 2 }}>
+                          <InputLabel>Select Hotels</InputLabel>
                           <Select
-                            value={day.finalizedHotel[pt.id] || ""}
-                            label="Select Hotel"
-                            onChange={(e) =>
-                              handleFinalizeHotel(dayIdx, pt, e.target.value)
-                            }
+                            multiple
+                            value={day.finalizedHotel?.[pt.id] || []}
+                            onChange={(e) => {
+                              const newDays = [...days];
+                              if (!newDays[dayIdx].finalizedHotel)
+                                newDays[dayIdx].finalizedHotel = {};
+                              newDays[dayIdx].finalizedHotel[pt.id] =
+                                e.target.value;
+                              setDays(newDays);
+                            }}
+                            input={<OutlinedInput label="Select Hotels" />}
+                            renderValue={(selected) => (
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: 1,
+                                }}
+                              >
+                                {selected.map((id) => {
+                                  const h = (
+                                    day.availableHotels?.[pt.id] || []
+                                  ).find((x) => x.id === id);
+                                  return h ? (
+                                    <Chip key={id} label={h.hotel_name} />
+                                  ) : null;
+                                })}
+                              </Box>
+                            )}
                             disabled={loading}
                           >
-                            {(day.availableHotels[pt.id] || []).map((h) => (
+                            {(day.availableHotels?.[pt.id] || []).map((h) => (
                               <MenuItem key={h.id} value={h.id}>
-                                {h.hotel_name}
+                                <Checkbox
+                                  checked={(
+                                    day.finalizedHotel?.[pt.id] || []
+                                  ).includes(h.id)}
+                                />
+                                <ListItemText primary={h.hotel_name} />
                               </MenuItem>
                             ))}
                           </Select>
                         </FormControl>
                       )}
 
-                      {day.pointModes[pt.id] === "others" && (
-                        <FormControl sx={{ minWidth: 280, ml: 2 }}>
+                      {/* Add-ons multi-select */}
+                      {day.pointModes[pt.id]?.includes("others") && (
+                        <FormControl sx={{ minWidth: 280, ml: 2, mb: 2 }}>
                           <InputLabel>Select Add-ons</InputLabel>
                           <Select
                             multiple
@@ -1372,14 +1531,15 @@ export default function PackageCreation() {
                                 })}
                               </Box>
                             )}
+                            disabled={loading}
                           >
                             {availableAddOns.map((a) => (
                               <MenuItem key={a.id} value={a.id}>
                                 <Checkbox
                                   checked={
-                                    day.finalizedAddOns?.[pt.id]?.indexOf(
-                                      a.id
-                                    ) > -1
+                                    (
+                                      day.finalizedAddOns?.[pt.id] || []
+                                    ).indexOf(a.id) > -1
                                   }
                                 />
                                 <ListItemText
@@ -1391,17 +1551,17 @@ export default function PackageCreation() {
                         </FormControl>
                       )}
 
-                      {(!day.availableSightseeing[pt.id] ||
-                        day.availableSightseeing[pt.id].length === 0) &&
-                        day.pointModes[pt.id] === "sightseeing" && (
+                      {/* No data found displays */}
+                      {day.pointModes[pt.id]?.includes("sightseeing") &&
+                        (!day.availableSightseeing?.[pt.id] ||
+                          day.availableSightseeing[pt.id].length === 0) && (
                           <Typography variant="body2" sx={{ mt: 1 }}>
                             No sightseeing records found in DB for this point.
                           </Typography>
                         )}
-
-                      {(!day.availableHotels[pt.id] ||
-                        day.availableHotels[pt.id].length === 0) &&
-                        day.pointModes[pt.id] === "stay" && (
+                      {day.pointModes[pt.id]?.includes("stay") &&
+                        (!day.availableHotels?.[pt.id] ||
+                          day.availableHotels[pt.id].length === 0) && (
                           <Typography variant="body2" sx={{ mt: 1 }}>
                             No hotel records found in DB for this point.
                           </Typography>
@@ -1440,7 +1600,7 @@ export default function PackageCreation() {
           {pricingData && (
             <>
               <Typography variant="h5" color="primary" mb={2}>
-                Pricing Calculation Details Per Day
+                {/* Pricing Calculation Details Per Day */}
               </Typography>
               <TableContainer>
                 <Table size="small" aria-label="per-day pricing breakdown">
@@ -1448,8 +1608,8 @@ export default function PackageCreation() {
                     <TableRow>
                       <TableCell>Day</TableCell>
                       <TableCell>Vehicle (₹)</TableCell>
-                      <TableCell>Sightseeing (₹)</TableCell>
-                      <TableCell>Hotels (₹)</TableCell>
+                      {/* <TableCell>Sightseeing (₹)</TableCell>
+                      <TableCell>Hotels (₹)</TableCell> */}
                       <TableCell>Total (₹)</TableCell>
                     </TableRow>
                   </TableHead>
@@ -1461,10 +1621,10 @@ export default function PackageCreation() {
                           <TableCell>
                             {day.dayVehicleTotal.toFixed(2)}
                           </TableCell>
-                          <TableCell>
+                          {/* <TableCell>
                             {day.daySightseeingTotal.toFixed(2)}
                           </TableCell>
-                          <TableCell>{day.dayHotelTotal.toFixed(2)}</TableCell>
+                          <TableCell>{day.dayHotelTotal.toFixed(2)}</TableCell> */}
                           <TableCell>
                             {(
                               day.dayVehicleTotal +
@@ -1495,7 +1655,7 @@ export default function PackageCreation() {
                               }`}
                             </Typography>
 
-                            {day.daySightseeingDetails.length > 0 && (
+                            {/* {day.daySightseeingDetails.length > 0 && (
                               <>
                                 <Typography variant="subtitle2" sx={{ mt: 1 }}>
                                   Sightseeing details:
@@ -1535,7 +1695,7 @@ export default function PackageCreation() {
                                   </Typography>
                                 ))}
                               </>
-                            )}
+                            )} */}
                           </TableCell>
                         </TableRow>
                       </React.Fragment>
@@ -1546,25 +1706,25 @@ export default function PackageCreation() {
                         Carrier Charge
                       </TableCell>
                       <TableCell colSpan={3} />
-                      <TableCell fontWeight="bold">
+                      {/* <TableCell fontWeight="bold">
                         {pricingData.carrierCharge.toFixed(2)}
-                      </TableCell>
+                      </TableCell> */}
                     </TableRow>
                     <TableRow>
-                      <TableCell colSpan={4} fontWeight="bold">
+                      {/* <TableCell colSpan={4} fontWeight="bold">
                         Add-ons Total
                       </TableCell>
                       <TableCell fontWeight="bold">
                         {(pricingData.grandAddOnsTotal || 0).toFixed(2)}
-                      </TableCell>
+                      </TableCell> */}
                     </TableRow>
 
                     <TableRow>
                       <TableCell colSpan={4} fontWeight="bold">
                         Grand Total Price
                       </TableCell>
-                      <TableCell fontWeight="bold">
-                        {pricingData.totalPrice.toFixed(2)}
+                      <TableCell style={{display:"flex" , justifyContent:"flex-end"}} fontWeight="bold">
+                        Rs {pricingData.totalPrice.toFixed(2)}
                       </TableCell>
                     </TableRow>
                   </TableBody>

@@ -25,7 +25,6 @@ export default function AddTrip() {
   const [vehicleModelId, setVehicleModelId] = useState("");
   const [numSourceSeats, setNumSourceSeats] = useState("");
   const [startTime, setStartTime] = useState("");
-  const [arrivalTime, setArrivalTime] = useState("");
   const [tripType, setTripType] = useState("");
   const [farePerSeat, setFarePerSeat] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,7 +47,7 @@ export default function AddTrip() {
 
       setVehicleModelId("");
       setNumSourceSeats("");
-      
+
       const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
       if (selectedVehicle) {
         switch (selectedVehicle.vehicleType.toLowerCase()) {
@@ -65,7 +64,7 @@ export default function AddTrip() {
             setTripType("Shared Bus");
             break;
           default:
-            setTripType("scheduled"); 
+            setTripType("scheduled");
             break;
         }
       } else {
@@ -89,52 +88,53 @@ export default function AddTrip() {
         const parentVehicle = vehicles.find((v) => v.id === parentVehicleId);
         if (parentVehicle && parentVehicle.seatingCapacity) {
           setMaxSeats(parentVehicle.seatingCapacity);
-          if (numSourceSeats > parentVehicle.seatingCapacity) {
-            setNumSourceSeats(parentVehicle.seatingCapacity.toString());
-          }
+          setNumSourceSeats(parentVehicle.seatingCapacity.toString()); // Auto-populate
         } else {
           setMaxSeats(null);
+          setNumSourceSeats("");
         }
       } else {
         setMaxSeats(null);
+        setNumSourceSeats("");
       }
     } else {
       setMaxSeats(null);
+      setNumSourceSeats("");
     }
-  }, [vehicleModelId, filteredVehicleModels, vehicles, numSourceSeats]);
+  }, [vehicleModelId, filteredVehicleModels, vehicles]);
 
-async function fetchDrivers() {
-  const { data: verifiedDocs, error: docsError } = await supabase
-    .from("driver_documents")
-    .select("id")
-    .eq("is_verified", true);
+  async function fetchDrivers() {
+    const { data: verifiedDocs, error: docsError } = await supabase
+      .from("driver_documents")
+      .select("id")
+      .eq("is_verified", true);
 
-  if (docsError) {
-    console.error("Error fetching verified driver documents:", docsError);
-    setDrivers([]);
-    return;
+    if (docsError) {
+      console.error("Error fetching verified driver documents:", docsError);
+      setDrivers([]);
+      return;
+    }
+
+    if (!verifiedDocs || verifiedDocs.length === 0) {
+      setDrivers([]);
+      return;
+    }
+
+    const verifiedDriverIds = verifiedDocs.map((doc) => doc.id);
+
+    const { data, error } = await supabase
+      .from("driver_profiles")
+      .select("id, name")
+      .in("id", verifiedDriverIds)
+      .order("name");
+
+    if (error) {
+      console.error("Error fetching verified drivers:", error);
+      setDrivers([]);
+    } else {
+      setDrivers(data);
+    }
   }
-
-  if (!verifiedDocs || verifiedDocs.length === 0) {
-    setDrivers([]);
-    return;
-  }
-
-  const verifiedDriverIds = verifiedDocs.map((doc) => doc.id);
-
-  const { data, error } = await supabase
-    .from("driver_profiles")
-    .select("id, name")
-    .in("id", verifiedDriverIds)
-    .order("name");
-
-  if (error) {
-    console.error("Error fetching verified drivers:", error);
-    setDrivers([]);
-  } else {
-    setDrivers(data);
-  }
-}
 
   async function fetchRoutes() {
     const { data, error } = await supabase
@@ -188,7 +188,7 @@ async function fetchDrivers() {
       alert("Please fill all required fields.");
       return;
     }
-    
+
     if (maxSeats && Number(numSourceSeats) > maxSeats) {
       alert(
         `Number of seats cannot exceed vehicle model's seating capacity (${maxSeats}).`
@@ -210,9 +210,9 @@ async function fetchDrivers() {
         departureTime: departureISO,
         tripType,
         farePerSeat: farePerSeat ? Number(farePerSeat) : null,
-        status: "upcoming",      
-        ride_status: "scheduled",  
-        current_point_index: 0,    
+        status: "upcoming",
+        ride_status: "scheduled",
+        current_point_index: 0,
       },
     ]);
 
@@ -243,12 +243,22 @@ async function fetchDrivers() {
     if (!isNaN(numericVal)) {
       if (maxSeats && numericVal > maxSeats) {
         setNumSourceSeats(maxSeats.toString());
-      } else if(numericVal < 0) {
-        setNumSourceSeats("0");
+      } else if (numericVal < 0) {
+        setNumSourceSeats("1");
       } else {
         setNumSourceSeats(val);
       }
     }
+  };
+
+  const getCurrentDateTimeLocal = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hour = String(now.getHours()).padStart(2, "0");
+    const minute = String(now.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hour}:${minute}`;
   };
 
   return (
@@ -341,7 +351,7 @@ async function fetchDrivers() {
         fullWidth
         sx={{ mt: 2 }}
         onChange={handleSeatsChange}
-        inputProps={{ min: 0, max: maxSeats || undefined }}
+        inputProps={{ min: 1, max: maxSeats || undefined }}
         helperText={
           maxSeats
             ? `Max seats allowed: ${maxSeats}`
@@ -350,30 +360,21 @@ async function fetchDrivers() {
       />
 
       <TextField
-        label="Start Time"
+        label="Departure Time"
         type="datetime-local"
         fullWidth
         sx={{ mt: 2 }}
         InputLabelProps={{ shrink: true }}
         value={startTime}
         onChange={(e) => setStartTime(e.target.value)}
-      />
-
-      <TextField
-        label="Arrival Time"
-        type="datetime-local"
-        fullWidth
-        sx={{ mt: 2 }}
-        InputLabelProps={{ shrink: true }}
-        value={arrivalTime}
-        onChange={(e) => setArrivalTime(e.target.value)}
+        inputProps={{ min: getCurrentDateTimeLocal() }}
       />
 
       <TextField
         label="Trip Type"
         value={tripType}
         fullWidth
-         sx={{ mt: 2, mb: 4 }}
+        sx={{ mt: 2, mb: 4 }}
         InputProps={{
           readOnly: true,
         }}
@@ -389,11 +390,7 @@ async function fetchDrivers() {
         inputProps={{ min: 0, step: "0.01" }}
       /> */}
 
-      <Button
-        variant="contained"
-        onClick={handleAddTrip}
-        disabled={loading}
-      >
+      <Button variant="contained" onClick={handleAddTrip} disabled={loading}>
         {loading ? "Adding…" : "Add Trip"}
       </Button>
     </Box>
