@@ -23,6 +23,8 @@ const drawerWidth = 300;
 const dashboardItems = [
   { title: "Routes", screen: "/Allroutes" },
   { title: "Vehicles", screen: "/vehiclelist" },
+  { title: "ZonesClusters", screen: "/ZonesClusters" },
+  { title: "Vehicle Pricing", screen: "/VehiclePricingConfig" },
   { title: "Hotels", screen: "/hotels" },
   { title: "Sightseeing", screen: "/sightseeing" },
   { title: "Addons", screen: "/Addons" },
@@ -30,7 +32,6 @@ const dashboardItems = [
   { title: "Orders", screen: "/orders" },
   { title: "Trips", screen: "/trips" },
   { title: "BookingRequests", screen: "/BookingRequests" },
-  { title: "ZonesClusters", screen: "/ZonesClusters" },
   // { title: "Pricing", screen: "/pricing" },
   { title: "Partner Verification", screen: "/partner-verification" },
   { title: "Driver Profiles", screen: "/drivers" },

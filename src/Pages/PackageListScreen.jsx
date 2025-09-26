@@ -35,7 +35,7 @@ export default function PackageListFullDetails() {
   id, name, category, type, active, created_at, cover_image_url,
   route:routes(id, name, points),
   package_vehicles (
-    vehicle:vehicle_id(id, model_name)
+    vehicle:vehicle_id(id, model_name, ac_type, vehicle_category)
   ),
   package_days (
     id, day_number, vehicle_distance_km, vehicle_price, sightseeing_price, hotel_price, description,
@@ -43,8 +43,18 @@ export default function PackageListFullDetails() {
       id,
       point_id,
       mode,
-      sightseeing:sightseeing_id(id, place_name, fees_adult, fees_child),
-      hotel:hotel_id(id, hotel_name, manual_price)
+      sightseeing:package_day_point_sightseeing(
+        id,
+        sightseeing_id (
+          id, place_name, fees_adult, fees_child
+        )
+      ),
+      hotel:package_day_point_hotels(
+        id,
+        hotel_id (
+          id, hotel_name, manual_price
+        )
+      )
     ),
     package_add_ons (
       add_on:add_on_id(id, title, price)

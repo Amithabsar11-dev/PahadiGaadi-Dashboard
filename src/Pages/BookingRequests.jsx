@@ -41,7 +41,9 @@ export default function BookingRequests() {
     }
     setBookings(bookingsData || []);
 
-    const tripIds = [...new Set(bookingsData.map((b) => b.tripId).filter(Boolean))];
+    const tripIds = [
+      ...new Set(bookingsData.map((b) => b.tripId).filter(Boolean)),
+    ];
     if (tripIds.length > 0) {
       const { data: tripsData, error: tripsError } = await supabase
         .from("trips")
@@ -147,7 +149,9 @@ export default function BookingRequests() {
     async function loadAvailableDrivers() {
       const map = {};
       for (const booking of bookings) {
-        const driversForBooking = await fetchAvailableDriversForBooking(booking);
+        const driversForBooking = await fetchAvailableDriversForBooking(
+          booking
+        );
         map[booking.id] = driversForBooking;
       }
       setAvailableDriversMap(map);
@@ -178,7 +182,10 @@ export default function BookingRequests() {
         .single();
       if (updateError || !updatedBooking) {
         console.error("Error updating booking:", updateError);
-        alert("Failed to confirm booking: " + (updateError?.message || "Unknown error"));
+        alert(
+          "Failed to confirm booking: " +
+            (updateError?.message || "Unknown error")
+        );
         setProcessingMap((prev) => ({ ...prev, [bookingId]: false }));
         return;
       }
@@ -194,6 +201,20 @@ export default function BookingRequests() {
         setProcessingMap((prev) => ({ ...prev, [bookingId]: false }));
         return;
       }
+      const tripId = updatedBooking.tripId;
+      if (tripId) {
+        const { error: tripUpdateError } = await supabase
+          .from("trips")
+          .update({
+            status: "booked",
+          })
+          .eq("id", tripId);
+
+        if (tripUpdateError) {
+          console.error("Error updating trip status:", tripUpdateError);
+          alert("Failed to update trip status: " + tripUpdateError.message);
+        }
+      }
       setBookings((prev) => prev.filter((b) => b.id !== bookingId));
       setSelectedDriver((prev) => ({ ...prev, [bookingId]: "" }));
     } catch (err) {
@@ -205,7 +226,9 @@ export default function BookingRequests() {
   }
 
   async function handleCancelBooking(bookingId) {
-    const confirmCancel = window.confirm("Are you sure you want to cancel this booking?");
+    const confirmCancel = window.confirm(
+      "Are you sure you want to cancel this booking?"
+    );
     if (!confirmCancel) return;
     setProcessingMap((prev) => ({ ...prev, [bookingId]: true }));
     try {
@@ -219,7 +242,9 @@ export default function BookingRequests() {
         .single();
       if (error || !data) {
         console.error("Error cancelling booking:", error);
-        alert("Failed to cancel booking: " + (error?.message || "Unknown error"));
+        alert(
+          "Failed to cancel booking: " + (error?.message || "Unknown error")
+        );
         setProcessingMap((prev) => ({ ...prev, [bookingId]: false }));
         return;
       }
@@ -246,7 +271,10 @@ export default function BookingRequests() {
         .single();
       if (error || !data) {
         console.error("Error approving hotel booking:", error);
-        alert("Failed to approve hotel booking: " + (error?.message || "Unknown error"));
+        alert(
+          "Failed to approve hotel booking: " +
+            (error?.message || "Unknown error")
+        );
         setProcessingMap((prev) => ({ ...prev, [bookingId]: false }));
         return;
       }
@@ -260,7 +288,9 @@ export default function BookingRequests() {
   }
 
   async function handleCancelHotelBooking(bookingId) {
-    const confirmCancel = window.confirm("Are you sure you want to cancel this hotel booking?");
+    const confirmCancel = window.confirm(
+      "Are you sure you want to cancel this hotel booking?"
+    );
     if (!confirmCancel) return;
     setProcessingMap((prev) => ({ ...prev, [bookingId]: true }));
     try {
@@ -274,7 +304,10 @@ export default function BookingRequests() {
         .single();
       if (error || !data) {
         console.error("Error cancelling hotel booking:", error);
-        alert("Failed to cancel hotel booking: " + (error?.message || "Unknown error"));
+        alert(
+          "Failed to cancel hotel booking: " +
+            (error?.message || "Unknown error")
+        );
         setProcessingMap((prev) => ({ ...prev, [bookingId]: false }));
         return;
       }
@@ -352,13 +385,27 @@ export default function BookingRequests() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell><strong>Booking ID</strong></TableCell>
-                <TableCell><strong>Package</strong></TableCell>
-                <TableCell><strong>Date</strong></TableCell>
-                <TableCell><strong>No. of Travelers</strong></TableCell>
-                <TableCell><strong>Rate (₹)</strong></TableCell>
-                <TableCell><strong>Select Driver</strong></TableCell>
-                <TableCell><strong>Actions</strong></TableCell>
+                <TableCell>
+                  <strong>Booking ID</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Package</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Date</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>No. of Travelers</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Rate (₹)</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Select Driver</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Actions</strong>
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -370,14 +417,21 @@ export default function BookingRequests() {
                   <TableRow key={booking.id}>
                     <TableCell>{booking.id}</TableCell>
                     <TableCell>{booking.route || "N/A"}</TableCell>
-                    <TableCell>{trip ? new Date(trip.departureTime).toLocaleString() : "N/A"}</TableCell>
+                    <TableCell>
+                      {trip
+                        ? new Date(trip.departureTime).toLocaleString()
+                        : "N/A"}
+                    </TableCell>
                     <TableCell>{booking.noOfSeats || 1}</TableCell>
                     <TableCell>{booking.totalPrice || "N/A"}</TableCell>
                     <TableCell>
                       <Select
                         value={selectedDriver[booking.id] || ""}
                         onChange={(e) =>
-                          setSelectedDriver((prev) => ({ ...prev, [booking.id]: e.target.value }))
+                          setSelectedDriver((prev) => ({
+                            ...prev,
+                            [booking.id]: e.target.value,
+                          }))
                         }
                         displayEmpty
                         sx={{ minWidth: 160, fontSize: "0.85rem", height: 32 }}
@@ -399,7 +453,11 @@ export default function BookingRequests() {
                           onClick={() => handleConfirmBooking(booking.id)}
                           disabled={isProcessing}
                           size="small"
-                          sx={{ minWidth: 100, fontSize: "0.75rem", padding: "4px 8px" }}
+                          sx={{
+                            minWidth: 100,
+                            fontSize: "0.75rem",
+                            padding: "4px 8px",
+                          }}
                         >
                           {isProcessing ? "Processing..." : "Confirm"}
                         </Button>
@@ -409,7 +467,11 @@ export default function BookingRequests() {
                           onClick={() => handleCancelBooking(booking.id)}
                           disabled={isProcessing}
                           size="small"
-                          sx={{ minWidth: 100, fontSize: "0.75rem", padding: "4px 8px" }}
+                          sx={{
+                            minWidth: 100,
+                            fontSize: "0.75rem",
+                            padding: "4px 8px",
+                          }}
                         >
                           Cancel
                         </Button>
@@ -431,14 +493,30 @@ export default function BookingRequests() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell><strong>Booking ID</strong></TableCell>
-                <TableCell><strong>Hotel ID</strong></TableCell>
-                <TableCell><strong>Check-in Date</strong></TableCell>
-                <TableCell><strong>Check-out Date</strong></TableCell>
-                <TableCell><strong>Adults</strong></TableCell>
-                <TableCell><strong>Children</strong></TableCell>
-                <TableCell><strong>Total Price (₹)</strong></TableCell>
-                <TableCell><strong>Actions</strong></TableCell>
+                <TableCell>
+                  <strong>Booking ID</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Hotel ID</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Check-in Date</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Check-out Date</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Adults</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Children</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Total Price (₹)</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Actions</strong>
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -448,8 +526,12 @@ export default function BookingRequests() {
                   <TableRow key={booking.id}>
                     <TableCell>{booking.id}</TableCell>
                     <TableCell>{booking.hotel_id}</TableCell>
-                    <TableCell>{new Date(booking.checkin_date).toLocaleDateString()}</TableCell>
-                    <TableCell>{new Date(booking.checkout_date).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      {new Date(booking.checkin_date).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(booking.checkout_date).toLocaleDateString()}
+                    </TableCell>
                     <TableCell>{booking.adults}</TableCell>
                     <TableCell>{booking.children}</TableCell>
                     <TableCell>{booking.total_price || "N/A"}</TableCell>
@@ -461,7 +543,11 @@ export default function BookingRequests() {
                           onClick={() => handleConfirmHotelBooking(booking.id)}
                           disabled={isProcessing}
                           size="small"
-                          sx={{ minWidth: 100, fontSize: "0.75rem", padding: "4px 8px" }}
+                          sx={{
+                            minWidth: 100,
+                            fontSize: "0.75rem",
+                            padding: "4px 8px",
+                          }}
                         >
                           {isProcessing ? "Processing..." : "Approve"}
                         </Button>
@@ -471,7 +557,11 @@ export default function BookingRequests() {
                           onClick={() => handleCancelHotelBooking(booking.id)}
                           disabled={isProcessing}
                           size="small"
-                          sx={{ minWidth: 100, fontSize: "0.75rem", padding: "4px 8px" }}
+                          sx={{
+                            minWidth: 100,
+                            fontSize: "0.75rem",
+                            padding: "4px 8px",
+                          }}
                         >
                           Cancel
                         </Button>

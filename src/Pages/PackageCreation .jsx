@@ -68,6 +68,7 @@ export default function PackageCreation() {
   const location = useLocation();
   const navigate = useNavigate();
   const [showAddOnDialog, setShowAddOnDialog] = useState(false);
+  const [vehiclePrices, setVehiclePrices] = useState({});
   const [newAddOn, setNewAddOn] = useState({
     title: "",
     description: "",
@@ -332,14 +333,16 @@ export default function PackageCreation() {
     const ordered = normalizeLastDayStartPoint(dayIdx, filtered);
     const newDays = [...days];
 
+    // Convert keys to string for reliable comparison
     const removedPoints = new Set(
       newDays[dayIdx].selectedPoints
         .filter((p) => !ordered.some((o) => o.id === p.id))
-        .map((p) => p.id)
+        .map((p) => String(p.id))
     );
 
     newDays[dayIdx].selectedPoints = ordered;
 
+    // Cleanup using string keys to match removedPoints type
     Object.keys(newDays[dayIdx].pointModes).forEach((p) => {
       if (removedPoints.has(p)) delete newDays[dayIdx].pointModes[p];
     });
@@ -368,6 +371,21 @@ export default function PackageCreation() {
         nextDay.selectedPoints[0].id !== lastPoint.id
       ) {
         nextDay.selectedPoints = [lastPoint];
+
+        // Also clear modes and selections of next day that belong to points not in nextDay.selectedPoints
+        const nextDayRemoved = new Set(
+          Object.keys(nextDay.pointModes).filter(
+            (key) => !nextDay.selectedPoints.some((p) => String(p.id) === key)
+          )
+        );
+
+        nextDayRemoved.forEach((p) => {
+          delete nextDay.pointModes[p];
+          delete nextDay.finalizedSightseeing[p];
+          delete nextDay.finalizedHotel[p];
+          delete nextDay.availableSightseeing[p];
+          delete nextDay.availableHotels[p];
+        });
       }
     }
 
@@ -455,166 +473,230 @@ export default function PackageCreation() {
     };
   };
 
+  const normalizeAcType = (acType) => {
+    if (!acType) return acType;
+    const lower = acType.toLowerCase();
+    if (lower.includes("non") && lower.includes("ac")) return "non_ac";
+    if (lower.includes("ac")) return "ac";
+    return lower;
+  };
+
+  const fetchVehiclePricingConfig = async (vehicle) => {
+    try {
+      const normAcType = normalizeAcType(vehicle.ac_type);
+
+      const { data, error } = await supabase
+        .from("vehicle_pricing_config")
+        .select("*")
+        .eq("vehicle_category", vehicle.vehicle_category.toLowerCase())
+        .eq("ac_type", normAcType)
+        .eq("ride_type", "two-way")
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.warn("Error fetching vehicle_pricing_config:", error);
+        return null;
+      }
+
+      if (!data) return null;
+
+      const zones = Array.isArray(data.zone_name) ? data.zone_name : [];
+      const clusters = Array.isArray(data.clusters) ? data.clusters : [];
+
+      return { ...data, zone_name: zones, clusters };
+    } catch (err) {
+      console.warn("Exception fetching vehicle_pricing_config:", err);
+      return null;
+    }
+  };
+
   const calculatePricing = async () => {
-    const vehicleIdForPricing = selectedVehicles.length
-      ? selectedVehicles[0]
-      : null;
-
-    if (!vehicleIdForPricing || days.length === 0) {
+    if (!selectedVehicles.length || !days.length) {
       setPricingData(null);
+      setVehiclePrices({});
       return;
     }
 
-    const vehicle = vehicles.find((v) => v.id === vehicleIdForPricing);
-    if (!vehicle) {
-      setPricingData(null);
-      return;
-    }
+    const newVehiclePrices = {};
 
-    // --- vehicle pricing rules ---
-    let vehiclePricePerKm = 0;
-    let fixedNightCharge = 0;
-    let carrierCharge = 0;
-    const category = vehicle.vehicle_category?.toLowerCase();
-    const acType = vehicle.ac_type?.toLowerCase();
-    const hasCarrier = vehicle.has_carrier;
-    if (category === "small") {
-      vehiclePricePerKm = acType === "non ac" ? 14.5 : 16;
-      fixedNightCharge = 500;
-      if (hasCarrier) carrierCharge = 200;
-    } else if (["medium", "large", "extra large"].includes(category)) {
-      vehiclePricePerKm = acType === "non ac" ? 17 : 18.5;
-      fixedNightCharge = 600;
-      if (hasCarrier) carrierCharge = 250;
-    } else {
-      vehiclePricePerKm = 16;
-      fixedNightCharge = 500;
-      if (hasCarrier) carrierCharge = 200;
-    }
+    for (const vehicleId of selectedVehicles) {
+      const vehicle = vehicles.find((v) => v.id === vehicleId);
+      if (!vehicle) continue;
 
-    const perDayDetails = [];
-    let grandVehicleTotal = 0;
-    let grandSightseeingTotal = 0;
-    let grandHotelTotal = 0;
+      const pricingConfigDb = await fetchVehiclePricingConfig(vehicle);
 
-    //keep add-ons total outside of day loop
-    let grandAddOnsTotal = 0;
-    const seenAddOns = new Set();
+      let vehiclePricePerKm = 0;
+      let fixedNightCharge = 0;
+      let carrierCharge = 0;
+      let zones = [];
+      let clusters = [];
+      let slabDistance = 0;
+      let useSlab = false;
 
-    // package-level add-ons
-    for (const addOnId of packageAddOns) {
-      if (!seenAddOns.has(addOnId)) {
-        const item = availableAddOns.find((a) => a.id === addOnId);
-        if (item) {
-          grandAddOnsTotal += parseFloat(item.price) || 0;
-          seenAddOns.add(addOnId);
+      if (pricingConfigDb) {
+        vehiclePricePerKm =
+          parseFloat(pricingConfigDb.vehicle_price_per_km) || 0;
+        fixedNightCharge = parseFloat(pricingConfigDb.fixed_night_charge) || 0;
+        carrierCharge = parseFloat(pricingConfigDb.carrier_charge) || 0;
+        zones = Array.isArray(pricingConfigDb.zone_name)
+          ? pricingConfigDb.zone_name
+          : [];
+        clusters = Array.isArray(pricingConfigDb.clusters)
+          ? pricingConfigDb.clusters
+          : [];
+        slabDistance = parseFloat(pricingConfigDb.slab_distance) || 0;
+        useSlab = pricingConfigDb.use_slab || false;
+      } else {
+        const category = vehicle.vehicle_category?.toLowerCase();
+        const acType = vehicle.ac_type?.toLowerCase();
+        if (category === "small") {
+          vehiclePricePerKm = acType === "non ac" ? 14.5 : 16;
+          fixedNightCharge = 500;
+          if (vehicle.has_carrier) carrierCharge = 200;
+        } else if (["medium", "large", "extra large"].includes(category)) {
+          vehiclePricePerKm = acType === "non ac" ? 17 : 18.5;
+          fixedNightCharge = 600;
+          if (vehicle.has_carrier) carrierCharge = 250;
+        } else {
+          vehiclePricePerKm = 16;
+          fixedNightCharge = 500;
+          if (vehicle.has_carrier) carrierCharge = 200;
         }
       }
-    }
 
-    // day-level add-ons
-    for (let d = 0; d < days.length; d++) {
-      const day = days[d];
-      if (day.finalizedAddOns) {
-        for (const addOnIds of Object.values(day.finalizedAddOns)) {
-          for (const addOnId of addOnIds) {
-            if (!seenAddOns.has(addOnId)) {
-              const item = availableAddOns.find((a) => a.id === addOnId);
-              if (item) {
-                grandAddOnsTotal += parseFloat(item.price) || 0;
-                seenAddOns.add(addOnId);
-              }
-            }
+      console.log("Fetched Vehicle Pricing Config:");
+      console.log("Zones:", zones);
+      console.log("Clusters:", clusters);
+      console.log("Slab Distance:", slabDistance);
+      console.log("Use Slab:", useSlab);
+
+      let grandVehicleTotal = 0;
+      let grandSightseeingTotal = 0;
+      let grandHotelTotal = 0;
+      let grandAddOnsTotal = 0;
+
+      const seenAddOns = new Set();
+      for (const addOnId of packageAddOns) {
+        if (!seenAddOns.has(addOnId)) {
+          const item = availableAddOns.find((a) => a.id === addOnId);
+          if (item) {
+            grandAddOnsTotal += parseFloat(item.price) || 0;
+            seenAddOns.add(addOnId);
           }
         }
       }
-    }
 
-    // calculate per-day vehicle/sightseeing/hotel
-    for (let dayIndex = 0; dayIndex < days.length; dayIndex++) {
-      const day = days[dayIndex];
-      let dayKms = 0;
+      const perDayDetails = [];
 
-      for (let i = 0; i < day.selectedPoints.length - 1; i++) {
-        const seg = getDistanceTimeBetween(
-          day.selectedPoints[i],
-          day.selectedPoints[i + 1]
-        );
-        if (seg && seg.distance) dayKms += seg.distance;
-      }
+      for (let dayIndex = 0; dayIndex < days.length; dayIndex++) {
+        const day = days[dayIndex];
+        let dayKms = 0;
 
-      const dayVehicleTotal = dayKms * vehiclePricePerKm + fixedNightCharge;
+        // Calculate total kms for the day
+        for (let i = 0; i < day.selectedPoints.length - 1; i++) {
+          const seg = getDistanceTimeBetween(
+            day.selectedPoints[i],
+            day.selectedPoints[i + 1]
+          );
+          if (seg && seg.distance) dayKms += seg.distance;
+        }
 
-      // sightseeing
-      let daySightseeingTotal = 0;
-      const daySightseeingDetails = [];
+        // Apply slab logic
+        let fareDistance = dayKms;
+        let slabApplied = false;
 
-      for (const [pointId, sightseeingId] of Object.entries(
-        day.finalizedSightseeing
-      )) {
-        const sightList = day.availableSightseeing[pointId] || [];
-        const sItem = sightList.find((s) => s.id === sightseeingId);
+        if (useSlab && slabDistance > 0) {
+          const allPointNames = day.selectedPoints.map((p) =>
+            p.name.toLowerCase().trim()
+          );
 
-        if (sItem) {
-          const feesAdult = parseFloat(sItem.feesadult) || 0;
-          const feesChild = parseFloat(sItem.feeschild) || 0;
-          const totalFees = feesAdult + feesChild;
-          daySightseeingTotal += totalFees;
+          // Check if any point matches a zone or cluster
+          const matchesZoneOrCluster = allPointNames.some(
+            (pointName) =>
+              zones.some((z) => pointName.includes(z.toLowerCase())) ||
+              clusters.some((c) => pointName.includes(c.toLowerCase()))
+          );
 
-          daySightseeingDetails.push({
-            sightseeingName: sItem.placename || sItem.name || "Sightseeing",
-            feesAdult,
-            feesChild,
-            totalFees,
+          if (matchesZoneOrCluster && dayKms < slabDistance) {
+            fareDistance = slabDistance;
+            slabApplied = true;
+          }
+        }
+
+        const dayVehicleTotal =
+          fareDistance * vehiclePricePerKm + fixedNightCharge;
+
+        // Sightseeing total
+        let daySightseeingTotal = 0;
+        for (const [pointId, sightseeingIds] of Object.entries(
+          day.finalizedSightseeing || {}
+        )) {
+          const sightList = day.availableSightseeing[pointId] || [];
+          (Array.isArray(sightseeingIds)
+            ? sightseeingIds
+            : [sightseeingIds]
+          ).forEach((sid) => {
+            const sItem = sightList.find((s) => s.id === sid);
+            if (sItem) {
+              daySightseeingTotal +=
+                parseFloat(sItem.feesadult || 0) +
+                parseFloat(sItem.feeschild || 0);
+            }
           });
         }
-      }
 
-      // hotels
-      let dayHotelTotal = 0;
-      const dayHotelDetails = [];
-      for (const [pointId, hotelId] of Object.entries(day.finalizedHotel)) {
-        const hList = day.availableHotels[pointId] || [];
-        const hItem = hList.find((h) => h.id === hotelId);
-        if (hItem && hItem.manualprice) {
-          dayHotelTotal += parseFloat(hItem.manualprice) || 0;
+        // Hotel total
+        let dayHotelTotal = 0;
+        for (const [pointId, hotelIds] of Object.entries(
+          day.finalizedHotel || {}
+        )) {
+          const hotelList = day.availableHotels[pointId] || [];
+          (Array.isArray(hotelIds) ? hotelIds : [hotelIds]).forEach((hid) => {
+            const hItem = hotelList.find((h) => h.id === hid);
+            if (hItem && hItem.manualprice) {
+              dayHotelTotal += parseFloat(hItem.manualprice);
+            }
+          });
         }
+
+        grandVehicleTotal += dayVehicleTotal;
+        grandSightseeingTotal += daySightseeingTotal;
+        grandHotelTotal += dayHotelTotal;
+
+        perDayDetails.push({
+          day: dayIndex + 1,
+          dayKms,
+          fareDistance,
+          slabApplied,
+          dayVehicleTotal,
+          daySightseeingTotal,
+          dayHotelTotal,
+        });
       }
 
-      grandVehicleTotal += dayVehicleTotal;
-      grandSightseeingTotal += daySightseeingTotal;
-      grandHotelTotal += dayHotelTotal;
+      const totalPrice =
+        grandVehicleTotal +
+        grandSightseeingTotal +
+        grandHotelTotal +
+        grandAddOnsTotal +
+        carrierCharge;
 
-      perDayDetails.push({
-        day: dayIndex + 1,
-        dayVehicleTotal,
-        daySightseeingTotal,
-        dayHotelTotal,
-        daySightseeingDetails,
-        dayHotelDetails,
-        dayKms,
+      newVehiclePrices[vehicleId] = grandVehicleTotal + carrierCharge;
+
+      setPricingData({
+        perDayDetails,
+        grandVehicleTotal,
+        grandSightseeingTotal,
+        grandHotelTotal,
+        totalPrice,
+        carrierCharge,
+        vehiclePricePerKm,
+        fixedNightCharge,
+        grandAddOnsTotal,
       });
+      setVehiclePrices(newVehiclePrices);
     }
-
-    const totalPrice =
-      grandVehicleTotal +
-      grandSightseeingTotal +
-      grandHotelTotal +
-      grandAddOnsTotal +
-      carrierCharge;
-
-    setPricingData({
-      perDayDetails,
-      grandVehicleTotal,
-      grandSightseeingTotal,
-      grandHotelTotal,
-      totalPrice,
-      carrierCharge,
-      vehiclePricePerKm,
-      fixedNightCharge,
-      numDays,
-      grandAddOnsTotal,
-    });
   };
 
   React.useEffect(() => {
@@ -625,23 +707,17 @@ export default function PackageCreation() {
     if (location.state?.packageData) {
       const pkg = location.state.packageData;
       console.log("Received package data:", pkg);
-      console.log("Package cover_image_url:", pkg.cover_image_url);
 
+      // ✅ Parse cover images safely
       let coverUrls = [];
-
       if (pkg.cover_image_url && pkg.cover_image_url !== "") {
         try {
           const parsedUrls = JSON.parse(pkg.cover_image_url);
-          if (Array.isArray(parsedUrls)) {
-            coverUrls = parsedUrls;
-          } else {
-            coverUrls = [parsedUrls];
-          }
+          coverUrls = Array.isArray(parsedUrls) ? parsedUrls : [parsedUrls];
         } catch {
           coverUrls = [pkg.cover_image_url];
         }
       }
-
       const coverImages = coverUrls.map((url) => {
         if (url && !url.startsWith("http")) {
           const { publicURL } = supabase.storage
@@ -652,85 +728,96 @@ export default function PackageCreation() {
         return { url, file: null };
       });
 
-      console.log("Mapped coverImages:", coverImages);
-
       setEditingPackageId(pkg.id || null);
       setPackageName(pkg.name || "");
       setCategory(pkg.category || "");
       setType(pkg.type || "");
       setRouteId(pkg.route?.id || "");
-      if (pkg.package_vehicles && pkg.package_vehicles.length > 0) {
+
+      // ✅ vehicles
+      if (pkg.package_vehicles?.length > 0) {
         setSelectedVehicles(pkg.package_vehicles.map((pv) => pv.vehicle.id));
       }
 
-      if (pkg.package_add_ons && pkg.package_add_ons.length > 0) {
-        setPackageAddOns(pkg.package_add_ons.map((pa) => pa.add_on.id));
+      // ✅ Global add-ons only (package level)
+      if (pkg.package_add_ons?.length > 0) {
+        setPackageAddOns(
+          pkg.package_add_ons
+            .filter((pa) => !pa.package_day_id && !pa.package_day_point_id)
+            .map((pa) => pa.add_on.id)
+        );
       }
 
       setCoverImages(coverImages);
 
       if (Array.isArray(pkg.package_days)) {
-        const daysData = pkg.package_days.map((day) => {
+        // ✅ Sort by correct field day_number
+        const sortedDays = [...pkg.package_days].sort(
+          (a, b) => a.day_number - b.day_number
+        );
+
+        const daysData = sortedDays.map((day) => {
           const finalizedSightseeing = {};
           const finalizedHotel = {};
           const pointModes = {};
           const finalizedAddOns = {};
-          const availableSightseeing = {};
-          const availableHotels = {};
 
-          // Group sightseeing and hotels separately per point as arrays (for multi-select)
-          day.package_day_points.forEach((pt) => {
-            // Sightseeing - gather all sightseeing ids for this point
-            if (pt.sightseeing) {
-              if (!finalizedSightseeing[pt.point_id])
-                finalizedSightseeing[pt.point_id] = [];
-              if (Array.isArray(pt.sightseeing)) {
-                finalizedSightseeing[pt.point_id].push(
-                  ...pt.sightseeing.map((s) => s.id)
-                );
-              } else {
-                finalizedSightseeing[pt.point_id].push(pt.sightseeing.id);
-              }
-              pointModes[pt.point_id] = pointModes[pt.point_id] || [];
-              if (!pointModes[pt.point_id].includes("sightseeing")) {
-                pointModes[pt.point_id].push("sightseeing");
-              }
+          // ✅ handle day add-ons (package_day_id)
+          const dayAddOns =
+            pkg.package_add_ons?.filter(
+              (ao) => ao.package_day_id === day.id && !ao.package_day_point_id
+            ) || [];
 
-              availableSightseeing[pt.point_id] =
-                availableSightseeing[pt.point_id] || [];
-              availableSightseeing[pt.point_id].push(pt.sightseeing);
+          (day.package_day_points || []).forEach((pt) => {
+            // ✅ Sightseeing (nested structure)
+            if (pt.sightseeing && pt.sightseeing.length > 0) {
+              finalizedSightseeing[pt.point_id] = pt.sightseeing.map(
+                (s) => s.sightseeing_id?.id
+              );
+
+              if (finalizedSightseeing[pt.point_id].length > 0) {
+                pointModes[pt.point_id] = pointModes[pt.point_id] || [];
+                if (!pointModes[pt.point_id].includes("sightseeing")) {
+                  pointModes[pt.point_id].push("sightseeing");
+                }
+              }
             }
 
-            // Hotel - gather all hotel ids for this point
-            if (pt.hotel) {
-              if (!finalizedHotel[pt.point_id])
-                finalizedHotel[pt.point_id] = [];
-              if (Array.isArray(pt.hotel)) {
-                finalizedHotel[pt.point_id].push(...pt.hotel.map((h) => h.id));
-              } else {
-                finalizedHotel[pt.point_id].push(pt.hotel.id);
-              }
-              pointModes[pt.point_id] = pointModes[pt.point_id] || [];
-              if (!pointModes[pt.point_id].includes("stay")) {
-                pointModes[pt.point_id].push("stay");
-              }
+            // ✅ Hotels (nested structure)
+            if (pt.hotel && pt.hotel.length > 0) {
+              finalizedHotel[pt.point_id] = pt.hotel.map((h) => h.hotel_id?.id);
 
-              availableHotels[pt.point_id] = availableHotels[pt.point_id] || [];
-              availableHotels[pt.point_id].push(pt.hotel);
+              if (finalizedHotel[pt.point_id].length > 0) {
+                pointModes[pt.point_id] = pointModes[pt.point_id] || [];
+                if (!pointModes[pt.point_id].includes("stay")) {
+                  pointModes[pt.point_id].push("stay");
+                }
+              }
             }
 
-            // For others addon mode - gather from add_ons linked to the point
-            if (pt.mode === "others") {
+            // ✅ Point-level add-ons
+            const pointAddOns =
+              pkg.package_add_ons?.filter(
+                (ao) => ao.package_day_point_id === pt.id
+              ) || [];
+
+            // Day-level add-ons for this day
+            const dayAddOns =
+              pkg.package_add_ons?.filter(
+                (ao) => ao.package_day_id === day.id && !ao.package_day_point_id
+              ) || [];
+
+            // Merge day-level + point-level into finalizedAddOns
+            finalizedAddOns[pt.point_id] = [
+              ...pointAddOns.map((ao) => ao.add_on.id),
+              ...dayAddOns.map((ao) => ao.add_on.id),
+            ];
+
+            if (finalizedAddOns[pt.point_id].length > 0) {
               pointModes[pt.point_id] = pointModes[pt.point_id] || [];
               if (!pointModes[pt.point_id].includes("others")) {
                 pointModes[pt.point_id].push("others");
               }
-
-              // Collect add-ons linked to this point
-              finalizedAddOns[pt.point_id] =
-                day.package_add_ons
-                  ?.filter((ao) => ao.package_day_point_id === pt.id)
-                  .map((ao) => ao.add_on.id) || [];
             }
           });
 
@@ -746,14 +833,15 @@ export default function PackageCreation() {
             finalizedSightseeing,
             finalizedHotel,
             finalizedAddOns,
-            availableSightseeing,
-            availableHotels,
+            availableSightseeing: {}, // will be fetched
+            availableHotels: {}, // will be fetched
           };
         });
 
         setDays(daysData);
         setNumDays(daysData.length);
 
+        // ✅ Fetch available sightseeing & hotels for each point
         (async () => {
           for (let d = 0; d < daysData.length; d++) {
             const day = daysData[d];
@@ -764,7 +852,7 @@ export default function PackageCreation() {
                 const { data: see } = await supabase
                   .from("sightseeing_points")
                   .select()
-                  .eq("route_id", routeId);
+                  .eq("route_id", pkg.route?.id || "");
                 day.availableSightseeing[pt.id] = see || [];
               }
 
@@ -786,6 +874,7 @@ export default function PackageCreation() {
 
       setRoutePoints(pkg.route?.points || []);
     } else {
+      // reset state for new package
       setEditingPackageId(null);
       setPackageName("");
       setCategory("");
@@ -796,6 +885,7 @@ export default function PackageCreation() {
       setDays([]);
       setNumDays(0);
       setRoutePoints([]);
+      setPackageAddOns([]);
     }
   }, [location.state]);
 
@@ -877,15 +967,18 @@ export default function PackageCreation() {
         packageId = data.id;
       }
 
-      // 📌 Insert package → vehicles join table
+      // 📌 Insert package → vehicles join table with price per vehicle
       if (selectedVehicles.length > 0) {
+        console.log("selectedVehicles to insert:", selectedVehicles);
         const vehicleRows = selectedVehicles.map((id) => ({
           package_id: packageId,
           vehicle_id: id,
+          price: vehiclePrices[id] || 0,
         }));
+
         const { error: vehicleErr } = await supabase
           .from("package_vehicles")
-          .insert(vehicleRows);
+          .upsert(vehicleRows, { onConflict: ["package_id", "vehicle_id"] });
         if (vehicleErr) throw vehicleErr;
       }
 
@@ -895,6 +988,7 @@ export default function PackageCreation() {
           package_id: packageId,
           add_on_id: id,
           package_day_id: null,
+          package_day_point_id: null,
         }));
         const { error: addOnErr } = await supabase
           .from("package_add_ons")
@@ -907,6 +1001,7 @@ export default function PackageCreation() {
         const day = days[idx];
         const dayNumber = idx + 1;
         let dayKms = 0;
+
         for (let i = 0; i < day.selectedPoints.length - 1; i++) {
           const seg = getDistanceTimeBetween(
             day.selectedPoints[i],
@@ -915,26 +1010,11 @@ export default function PackageCreation() {
           if (seg && seg.distance) dayKms += seg.distance;
         }
 
-        const vehicle = vehicles.find((v) => v.id === selectedVehicles[0]); // pricing based on first vehicle
-        let vehiclePricePerKm = 0;
-        let fixedNightCharge = 0;
-        if (vehicle) {
-          const category = vehicle.vehicle_category?.toLowerCase();
-          const acType = vehicle.ac_type?.toLowerCase();
-          if (category === "small") {
-            vehiclePricePerKm = acType === "non ac" ? 14.5 : 16;
-            fixedNightCharge = 500;
-          } else if (["medium", "large", "extra large"].includes(category)) {
-            vehiclePricePerKm = acType === "non ac" ? 17 : 18.5;
-            fixedNightCharge = 600;
-          } else {
-            vehiclePricePerKm = 16;
-            fixedNightCharge = 500;
-          }
-        }
+        // ✅ Use already calculated price from pricingData
+        const dayVehicleCost =
+          pricingData?.perDayDetails?.[idx]?.dayVehicleTotal || 0;
 
-        const dayVehicleCost = dayKms * vehiclePricePerKm + fixedNightCharge;
-
+        // Calculate sightseeing cost
         let sightseeingTotal = 0;
         for (const [pointId, sightseeingId] of Object.entries(
           day.finalizedSightseeing
@@ -948,6 +1028,7 @@ export default function PackageCreation() {
           }
         }
 
+        // Calculate hotel cost
         let hotelTotal = 0;
         for (const [pointId, hotelId] of Object.entries(day.finalizedHotel)) {
           const hotelList = day.availableHotels[pointId] || [];
@@ -963,7 +1044,7 @@ export default function PackageCreation() {
             package_id: packageId,
             day_number: dayNumber,
             vehicle_distance_km: dayKms,
-            vehicle_price: dayVehicleCost,
+            vehicle_price: dayVehicleCost, 
             sightseeing_price: sightseeingTotal,
             hotel_price: hotelTotal,
             description: day.description,
@@ -974,8 +1055,8 @@ export default function PackageCreation() {
 
         const dayDbId = dayData.id;
 
+        // Insert day points
         for (const p of day.selectedPoints) {
-          // Insert base day point without sightseeing or hotel
           const { data: dayPointData, error: dayPointErr } = await supabase
             .from("package_day_points")
             .insert({
@@ -985,56 +1066,54 @@ export default function PackageCreation() {
             })
             .select()
             .single();
-
           if (dayPointErr) throw dayPointErr;
 
           const dayPointId = dayPointData.id;
 
-          // Insert multiple sightseeing rows for this day point
+          // Insert sightseeing for this point
           const sightseeingIds = day.finalizedSightseeing[p.id] || [];
           if (sightseeingIds.length > 0) {
             const sightseeingRows = sightseeingIds.map((sid) => ({
               package_day_point_id: dayPointId,
               sightseeing_id: sid,
             }));
-
             const { error: sightError } = await supabase
               .from("package_day_point_sightseeing")
               .insert(sightseeingRows);
-
             if (sightError) throw sightError;
           }
 
-          // Insert multiple hotel rows for this day point
+          // Insert hotels for this point
           const hotelIds = day.finalizedHotel[p.id] || [];
           if (hotelIds.length > 0) {
             const hotelRows = hotelIds.map((hid) => ({
               package_day_point_id: dayPointId,
               hotel_id: hid,
             }));
-
             const { error: hotelError } = await supabase
               .from("package_day_point_hotels")
               .insert(hotelRows);
-
             if (hotelError) throw hotelError;
           }
         }
 
-        // 📌 Insert day-level add-ons
         if (day.finalizedAddOns) {
-          for (const addOnIds of Object.values(day.finalizedAddOns)) {
-            const dayAddOnRows = addOnIds.map((id) => ({
+          for (const [pointId, addOnIds] of Object.entries(
+            day.finalizedAddOns
+          )) {
+            if (!addOnIds || addOnIds.length === 0) continue;
+
+            const point = day.selectedPoints.find((p) => p.id === pointId);
+            const pointDbId = point?.dbId; 
+
+            const addOnRows = addOnIds.map((id) => ({
               package_id: packageId,
               add_on_id: id,
-              package_day_id: dayDbId,
+              package_day_point_id: pointDbId || null,
+              package_day_id: pointDbId ? null : dayDbId, 
             }));
-            if (dayAddOnRows.length) {
-              const { error: dayAddOnErr } = await supabase
-                .from("package_add_ons")
-                .insert(dayAddOnRows);
-              if (dayAddOnErr) throw dayAddOnErr;
-            }
+
+            await supabase.from("package_add_ons").insert(addOnRows);
           }
         }
       }
@@ -1723,7 +1802,10 @@ export default function PackageCreation() {
                       <TableCell colSpan={4} fontWeight="bold">
                         Grand Total Price
                       </TableCell>
-                      <TableCell style={{display:"flex" , justifyContent:"flex-end"}} fontWeight="bold">
+                      <TableCell
+                        style={{ display: "flex", justifyContent: "flex-end" }}
+                        fontWeight="bold"
+                      >
                         Rs {pricingData.totalPrice.toFixed(2)}
                       </TableCell>
                     </TableRow>

@@ -91,10 +91,10 @@ export default function ZonesClusters() {
 
   return (
     <Box sx={{ p: 4 }}>
-      <Typography variant="h4" gutterBottom color="primary">
+        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+      <Typography variant="h5" gutterBottom color="primary">
         Zones & Clusters
       </Typography>
-      <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
         <Button variant="contained" color="primary" onClick={handleOpenAdd}>
           Add ZoneCluster
         </Button>
