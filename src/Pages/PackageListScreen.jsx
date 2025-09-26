@@ -173,8 +173,8 @@ export default function PackageListFullDetails() {
                                   <TableCell>Day</TableCell>
                                   <TableCell>Distance (km)</TableCell>
                                   <TableCell>Vehicle Cost (₹)</TableCell>
-                                  <TableCell>Sightseeing Cost (₹)</TableCell>
-                                  <TableCell>Hotel Cost (₹)</TableCell>
+                                  {/* <TableCell>Sightseeing Cost (₹)</TableCell>
+                                  <TableCell>Hotel Cost (₹)</TableCell> */}
                                   <TableCell>Selected Points & Modes</TableCell>
                                 </TableRow>
                               </TableHead>
@@ -190,12 +190,12 @@ export default function PackageListFullDetails() {
                                     <TableCell>
                                       {day.vehicle_price?.toFixed(2)}
                                     </TableCell>
-                                    <TableCell>
+                                    {/* <TableCell>
                                       {day.sightseeing_price?.toFixed(2)}
                                     </TableCell>
                                     <TableCell>
                                       {day.hotel_price?.toFixed(2)}
-                                    </TableCell>
+                                    </TableCell> */}
                                     <TableCell>
                                       {day.package_day_points?.length > 0 ? (
                                         day.package_day_points.map((pt) => {

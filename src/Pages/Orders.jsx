@@ -344,7 +344,7 @@ export default function Orders() {
                 <TableCell>Booking ID</TableCell>
                 <TableCell>Customer Name</TableCell>
                 <TableCell>Driver Name</TableCell>
-                <TableCell>Created At</TableCell>
+                {/* <TableCell>Created At</TableCell> */}
                 <TableCell>Pickup City</TableCell>
                 <TableCell>Drop City</TableCell>
                 <TableCell>Pickup Time</TableCell>
@@ -367,7 +367,7 @@ export default function Orders() {
                     <TableCell>{order.id}</TableCell>
                     <TableCell>{getCustomerName(order.userId)}</TableCell>
                     <TableCell>{getDriverName(getDriverIdForBooking(order))}</TableCell>
-                    <TableCell>{formatDate(order.created_at)}</TableCell>
+                    {/* <TableCell>{formatDate(order.created_at)}</TableCell> */}
                     <TableCell>{order.pickupCity || "-"}</TableCell>
                     <TableCell>{order.dropCity || "-"}</TableCell>
                     <TableCell>{formatDate(order.pickupTime)}</TableCell>
