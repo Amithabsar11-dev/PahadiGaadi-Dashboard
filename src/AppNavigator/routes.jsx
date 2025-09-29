@@ -22,6 +22,7 @@ import BookingRequests from "../Pages/BookingRequests";
 import AddOnsManagement from "../Pages/AddOnsManagement";
 import ZonesClusters from "../Pages/ZonesClusters";
 import VehiclePricingConfig from "../Pages/VehiclePricingConfig";
+import HotelBookings from "../Pages/HotelBookings";
 import { Navigate } from "react-router-dom";
 
 const routes = [
@@ -42,6 +43,7 @@ const routes = [
       { path: "vehiclelist", element: <VehicleList /> },
       { path: "hotels", element: <HotelsAdminPanel /> },
       { path: "orders/:id", element: <OrderDetails /> },
+       { path: "hotelbookings", element: <HotelBookings /> },
       { path: "pricing", element: <Pricing /> },
       { path: "package", element: <PackageCreation /> },
       { path: "sightseeing", element: <Sightseeing /> },

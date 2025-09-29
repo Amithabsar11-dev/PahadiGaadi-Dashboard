@@ -19,16 +19,14 @@ import {
   CircularProgress,
   Stack,
   Avatar,
-  Tooltip,
   Grid,
   InputAdornment,
+  TablePagination,
 } from "@mui/material";
 import {
   AccountBalanceWallet as AccountBalanceWalletIcon,
-  LocalPhone as LocalPhoneIcon,
-  Email as EmailIcon,
-  Favorite as FavoriteIcon,
   Person as PersonIcon,
+  Email as EmailIcon,
   Search as SearchIcon,
 } from "@mui/icons-material";
 import { supabase } from "../lib/supabase";
@@ -48,6 +46,14 @@ export default function CustomerProfiles() {
   const [walletAmount, setWalletAmount] = useState("");
   const [walletReason, setWalletReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Pagination state
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filterName, filterPhone, filterEmail]);
 
   useEffect(() => {
     fetchCustomers();
@@ -77,9 +83,7 @@ export default function CustomerProfiles() {
       );
     }
     if (filterPhone.trim()) {
-      filtered = filtered.filter((c) =>
-        (c.phone || "").includes(filterPhone)
-      );
+      filtered = filtered.filter((c) => (c.phone || "").includes(filterPhone));
     }
     if (filterEmail.trim()) {
       const lowEmail = filterEmail.toLowerCase();
@@ -88,7 +92,9 @@ export default function CustomerProfiles() {
       );
     }
     return filtered.sort((a, b) =>
-      (a.userName || "").toLowerCase().localeCompare((b.userName || "").toLowerCase())
+      (a.userName || "")
+        .toLowerCase()
+        .localeCompare((b.userName || "").toLowerCase())
     );
   }, [customers, filterName, filterPhone, filterEmail]);
 
@@ -104,58 +110,27 @@ export default function CustomerProfiles() {
     setSelectedCustomer(null);
   };
 
-  const handleSubmit = async () => {
-    if (!walletAmount || Number(walletAmount) <= 0) {
-      alert("Please enter a positive amount.");
-      return;
-    }
-    if (!walletReason.trim()) {
-      alert("Please enter a reason.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const currentBalance = Number(selectedCustomer.wallet_balance ?? 0);
-      const deductedAmount = -Math.abs(Number(walletAmount));
-      const newBalance = currentBalance + deductedAmount;
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .update({ wallet_balance: newBalance })
-        .eq("id", selectedCustomer.id)
-        .select();
-
-      console.log("Update data:", data, "Error:", error);
-
-      if (error) throw error;
-
-      alert("Penalty applied successfully");
-
-      // Update local state immediately
-      if (data && data.length > 0) {
-        setCustomers((prev) =>
-          prev.map((c) =>
-            c.id === selectedCustomer.id ? { ...c, wallet_balance: data[0].wallet_balance } : c
-          )
-        );
-      } else {
-        fetchCustomers();
-      }
-      handleClose();
-    } catch (err) {
-      alert("Failed to update wallet: " + err.message);
-    }
-    setSubmitting(false);
-  };
-
   return (
-    <Paper sx={{ p: 3, background: "linear-gradient(120deg, #fffde7 0%, #f5f5f5 100%)" }}>
+    <Paper
+      sx={{
+        p: 3,
+        background: "linear-gradient(120deg, #fffde7 0%, #f5f5f5 100%)",
+      }}
+    >
       <Typography variant="h4" gutterBottom color="primary">
         Customer Profiles
       </Typography>
 
       {/* Filter Section */}
-      <Box sx={{ p: 2, mb: 3, background: "#f7fafc", borderRadius: 2, boxShadow: 1 }}>
+      <Box
+        sx={{
+          p: 2,
+          mb: 3,
+          background: "#f7fafc",
+          borderRadius: 2,
+          boxShadow: 1,
+        }}
+      >
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} md={4}>
             <TextField
@@ -166,7 +141,11 @@ export default function CustomerProfiles() {
               size="small"
               variant="outlined"
               InputProps={{
-                startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
               }}
             />
           </Grid>
@@ -179,7 +158,11 @@ export default function CustomerProfiles() {
               size="small"
               variant="outlined"
               InputProps={{
-                startAdornment: <InputAdornment position="start"><PersonIcon /></InputAdornment>,
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PersonIcon />
+                  </InputAdornment>
+                ),
               }}
             />
           </Grid>
@@ -192,7 +175,11 @@ export default function CustomerProfiles() {
               size="small"
               variant="outlined"
               InputProps={{
-                startAdornment: <InputAdornment position="start"><EmailIcon /></InputAdornment>,
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <EmailIcon />
+                  </InputAdornment>
+                ),
               }}
             />
           </Grid>
@@ -205,68 +192,97 @@ export default function CustomerProfiles() {
           <CircularProgress />
         </Box>
       ) : (
-        <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: 2 }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Phone</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Favourite Place</TableCell>
-                <TableCell>Favourite Hobby</TableCell>
-                <TableCell>Wallet (₹)</TableCell>
-                <TableCell>Action</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredCustomers.length === 0 && (
+        <>
+          <TableContainer
+            component={Paper}
+            sx={{ borderRadius: 3, boxShadow: 2 }}
+          >
+            <Table>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
-                    No customers found.
-                  </TableCell>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Phone</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>Favourite Place</TableCell>
+                  <TableCell>Favourite Hobby</TableCell>
+                  <TableCell>Wallet (₹)</TableCell>
+                  <TableCell>Action</TableCell>
                 </TableRow>
-              )}
-              {filteredCustomers.map(customer => (
-                <TableRow key={customer.id} hover>
-                  <TableCell>
-                    <Stack direction="row" spacing={2} alignItems="center">
-                      {customer.profileImage ? (
-                        <Avatar src={customer.profileImage} />
-                      ) : (
-                        <Avatar sx={{ bgcolor: '#fbc02d' }}>
-                          {customer.userName ? customer.userName.charAt(0).toUpperCase() : '?'}
-                        </Avatar>
-                      )}
-                      <Typography variant="subtitle1" fontWeight="bold">{customer.userName || '-'}</Typography>
-                    </Stack>
-                  </TableCell>
-                  <TableCell>{customer.phone || '-'}</TableCell>
-                  <TableCell>{customer.email || '-'}</TableCell>
-                  <TableCell>{customer.favouritePlace || '-'}</TableCell>
-                  <TableCell>{customer.favouriteHobby || '-'}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={`₹${(customer.wallet_balance ?? 0).toFixed(2)}`}
-                      color={customer.wallet_balance > 0 ? 'primary' : 'default'}
-                      variant="outlined"
-                      icon={<AccountBalanceWalletIcon />}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Button 
-                      variant="outlined" 
-                      color="error" 
-                      size="small" 
-                      onClick={() => handleOpenDialog(customer)}
-                    >
-                      Add Penalty
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {filteredCustomers.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center">
+                      No customers found.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {filteredCustomers
+                  .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                  .map((customer) => (
+                    <TableRow key={customer.id} hover>
+                      <TableCell>
+                        <Stack direction="row" spacing={2} alignItems="center">
+                          {customer.profileImage ? (
+                            <Avatar src={customer.profileImage} />
+                          ) : (
+                            <Avatar sx={{ bgcolor: "#fbc02d" }}>
+                              {customer.userName
+                                ? customer.userName.charAt(0).toUpperCase()
+                                : "?"}
+                            </Avatar>
+                          )}
+                          <Typography variant="subtitle1" fontWeight="bold">
+                            {customer.userName || "-"}
+                          </Typography>
+                        </Stack>
+                      </TableCell>
+                      <TableCell>{customer.phone || "-"}</TableCell>
+                      <TableCell>{customer.email || "-"}</TableCell>
+                      <TableCell>{customer.favouritePlace || "-"}</TableCell>
+                      <TableCell>{customer.favouriteHobby || "-"}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={`₹${(customer.wallet_balance ?? 0).toFixed(
+                            2
+                          )}`}
+                          color={
+                            customer.wallet_balance > 0 ? "primary" : "default"
+                          }
+                          variant="outlined"
+                          icon={<AccountBalanceWalletIcon />}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          size="small"
+                          onClick={() => handleOpenDialog(customer)}
+                        >
+                          Add Penalty
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {/* Pagination Controls */}
+          <TablePagination
+            component="div"
+            count={filteredCustomers.length}
+            page={page}
+            onPageChange={(e, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+            rowsPerPageOptions={[5, 10, 25]}
+          />
+        </>
       )}
 
       {/* Wallet Adjustment Dialog */}
@@ -282,7 +298,7 @@ export default function CustomerProfiles() {
             variant="outlined"
             margin="dense"
             value={walletAmount}
-            onChange={e => setWalletAmount(e.target.value)}
+            onChange={(e) => setWalletAmount(e.target.value)}
             inputProps={{ min: 0.01 }}
             disabled={submitting}
           />
@@ -293,51 +309,62 @@ export default function CustomerProfiles() {
             fullWidth
             margin="dense"
             value={walletReason}
-            onChange={e => setWalletReason(e.target.value)}
+            onChange={(e) => setWalletReason(e.target.value)}
             disabled={submitting}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose} disabled={submitting}>Cancel</Button>
-          <Button 
+          <Button onClick={handleClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
             onClick={async () => {
-              if(!walletAmount || Number(walletAmount) <= 0) {
-                alert('Please enter a positive amount');
+              if (!walletAmount || Number(walletAmount) <= 0) {
+                alert("Please enter a positive amount");
                 return;
               }
-              if(!walletReason.trim()) {
-                alert('Please enter reason');
+              if (!walletReason.trim()) {
+                alert("Please enter reason");
                 return;
               }
               try {
                 setSubmitting(true);
-                const currentBalance = Number(selectedCustomer.wallet_balance ?? 0);
-                const newBalance = currentBalance - Math.abs(Number(walletAmount));
+                const currentBalance = Number(
+                  selectedCustomer.wallet_balance ?? 0
+                );
+                const newBalance =
+                  currentBalance - Math.abs(Number(walletAmount));
                 const { data, error } = await supabase
-                  .from('profiles')
+                  .from("profiles")
                   .update({ wallet_balance: newBalance })
-                  .eq('id', selectedCustomer.id)
+                  .eq("id", selectedCustomer.id)
                   .select();
 
-                if(error) throw error;
+                if (error) throw error;
 
-                alert('Penalty added successfully');
+                alert("Penalty added successfully");
 
-                if(data && data.length > 0) {
-                  setCustomers(prev => prev.map(c => c.id === selectedCustomer.id ? {...c, wallet_balance: data[0].wallet_balance} : c));
+                if (data && data.length > 0) {
+                  setCustomers((prev) =>
+                    prev.map((c) =>
+                      c.id === selectedCustomer.id
+                        ? { ...c, wallet_balance: data[0].wallet_balance }
+                        : c
+                    )
+                  );
                 } else {
                   fetchCustomers();
                 }
 
                 setOpen(false);
                 setSubmitting(false);
-              } catch(err) {
-                alert('Failed to update wallet: ' + err.message);
+              } catch (err) {
+                alert("Failed to update wallet: " + err.message);
                 setSubmitting(false);
               }
-            }} 
-            variant="contained" 
-            color="error" 
+            }}
+            variant="contained"
+            color="error"
             disabled={submitting}
           >
             Submit

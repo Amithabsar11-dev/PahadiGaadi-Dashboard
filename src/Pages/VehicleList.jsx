@@ -31,6 +31,10 @@ export default function VehicleList() {
   const [loading, setLoading] = useState(true);
   const [previewModel, setPreviewModel] = useState(null);
 
+  // For delete confirmation dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [modelToDelete, setModelToDelete] = useState(null);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -66,16 +70,27 @@ export default function VehicleList() {
     setPreviewModel(model);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this vehicle model?")) {
-      const { error } = await supabase.from("vehicles_model").delete().eq("id", id);
-      if (error) {
-        alert("Failed to delete vehicle model");
-        return;
-      }
-      // Refetch after delete for consistency
+  const confirmDelete = (model) => {
+    setModelToDelete(model);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!modelToDelete) return;
+
+    const { error } = await supabase
+      .from("vehicles_model")
+      .delete()
+      .eq("id", modelToDelete.id);
+
+    if (error) {
+      alert("Failed to delete vehicle model");
+    } else {
       fetchModels();
     }
+
+    setDeleteDialogOpen(false);
+    setModelToDelete(null);
   };
 
   const handleAddVehicle = () => {
@@ -120,13 +135,10 @@ export default function VehicleList() {
             <TableRow>
               <TableCell>Model Name</TableCell>
               <TableCell>Vehicle Type</TableCell>
-              {/* <TableCell>Rating</TableCell> */}
               <TableCell>Seater Range</TableCell>
               <TableCell>Service Name</TableCell>
               <TableCell>Vehicle Category</TableCell>
               <TableCell>AC Type</TableCell>
-              {/* <TableCell>Has Carrier</TableCell> */}
-              {/* <TableCell>Created At</TableCell> */}
               <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -136,13 +148,10 @@ export default function VehicleList() {
               <TableRow key={model.id}>
                 <TableCell>{model.model_name || "Untitled Model"}</TableCell>
                 <TableCell>{model.vehicles?.vehicleType || "N/A"}</TableCell>
-                {/* <TableCell>{model.rating ?? "N/A"}</TableCell> */}
                 <TableCell>{model.seater_range || "N/A"}</TableCell>
                 <TableCell>{model.service_name || "N/A"}</TableCell>
                 <TableCell>{model.vehicle_category || "N/A"}</TableCell>
                 <TableCell>{model.ac_type || "N/A"}</TableCell>
-                {/* <TableCell>{model.has_carrier ? "Yes" : "No"}</TableCell> */}
-                {/* <TableCell>{new Date(model.created_at).toLocaleString()}</TableCell> */}
                 <TableCell align="center">
                   <Tooltip title="Edit">
                     <IconButton size="small" color="primary" onClick={() => handleEdit(model)}>
@@ -150,11 +159,7 @@ export default function VehicleList() {
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Preview">
-                    <IconButton
-                      size="small"
-                      color="success"
-                      onClick={() => handlePreview(model)}
-                    >
+                    <IconButton size="small" color="success" onClick={() => handlePreview(model)}>
                       <VisibilityIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -162,7 +167,7 @@ export default function VehicleList() {
                     <IconButton
                       size="small"
                       color="error"
-                      onClick={() => handleDelete(model.id)}
+                      onClick={() => confirmDelete(model)}
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
@@ -186,9 +191,6 @@ export default function VehicleList() {
           <Typography gutterBottom>
             <strong>Vehicle Type:</strong> {previewModel?.vehicles?.vehicleType || "N/A"}
           </Typography>
-          {/* <Typography gutterBottom>
-            <strong>Rating:</strong> {previewModel?.rating ?? "N/A"}
-          </Typography> */}
           <Typography gutterBottom>
             <strong>Seater Range:</strong> {previewModel?.seater_range || "N/A"}
           </Typography>
@@ -201,9 +203,6 @@ export default function VehicleList() {
           <Typography gutterBottom>
             <strong>AC Type:</strong> {previewModel?.ac_type || "N/A"}
           </Typography>
-          {/* <Typography gutterBottom>
-            <strong>Has Carrier:</strong> {previewModel?.has_carrier ? "Yes" : "No"}
-          </Typography> */}
           {previewModel?.image_url && (
             <Box
               component="img"
@@ -219,6 +218,23 @@ export default function VehicleList() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPreviewModel(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Delete Vehicle Model</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete{" "}
+            <strong>{modelToDelete?.model_name}</strong>?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>No</Button>
+          <Button onClick={handleDelete} color="error" autoFocus>
+            Yes, Delete
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

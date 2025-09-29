@@ -28,6 +28,7 @@ import {
   TextField,
   Button,
 } from "@mui/material";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { Add, Close } from "@mui/icons-material";
 
 import { supabase } from "../lib/supabase";
@@ -1044,7 +1045,7 @@ export default function PackageCreation() {
             package_id: packageId,
             day_number: dayNumber,
             vehicle_distance_km: dayKms,
-            vehicle_price: dayVehicleCost, 
+            vehicle_price: dayVehicleCost,
             sightseeing_price: sightseeingTotal,
             hotel_price: hotelTotal,
             description: day.description,
@@ -1104,13 +1105,13 @@ export default function PackageCreation() {
             if (!addOnIds || addOnIds.length === 0) continue;
 
             const point = day.selectedPoints.find((p) => p.id === pointId);
-            const pointDbId = point?.dbId; 
+            const pointDbId = point?.dbId;
 
             const addOnRows = addOnIds.map((id) => ({
               package_id: packageId,
               add_on_id: id,
               package_day_point_id: pointDbId || null,
-              package_day_id: pointDbId ? null : dayDbId, 
+              package_day_id: pointDbId ? null : dayDbId,
             }));
 
             await supabase.from("package_add_ons").insert(addOnRows);
@@ -1144,9 +1145,14 @@ export default function PackageCreation() {
     <>
       <Box sx={{ maxWidth: 1200, mx: "auto", my: 3 }}>
         <Paper sx={{ p: 3 }}>
-          <Typography variant="h4" mb={2} color="primary">
-            Create Package
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+            <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+              <ArrowBackIcon />
+            </IconButton>
+            <Typography variant="h4"  color="primary">
+              Create Package
+            </Typography>
+          </Box>
 
           {/* Package Name Input */}
           <TextField

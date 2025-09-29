@@ -423,7 +423,11 @@ export default function BookingRequests() {
                         : "N/A"}
                     </TableCell>
                     <TableCell>{booking.noOfSeats || 1}</TableCell>
-                    <TableCell>{booking.totalPrice || "N/A"}</TableCell>
+                    <TableCell>
+                      {booking.totalPrice
+                        ? booking.totalPrice.toFixed(2)
+                        : "N/A"}
+                    </TableCell>
                     <TableCell>
                       <Select
                         value={selectedDriver[booking.id] || ""}
@@ -534,7 +538,7 @@ export default function BookingRequests() {
                     </TableCell>
                     <TableCell>{booking.adults}</TableCell>
                     <TableCell>{booking.children}</TableCell>
-                    <TableCell>{booking.total_price || "N/A"}</TableCell>
+                    <TableCell>{booking.total_price ? booking.total_price.toFixed(2) : "N/A"}</TableCell>
                     <TableCell>
                       <Stack direction="row" spacing={1}>
                         <Button

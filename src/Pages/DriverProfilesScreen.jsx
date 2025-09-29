@@ -24,11 +24,11 @@ import {
   Tooltip,
   Grid,
   InputAdornment,
+  TablePagination,
 } from "@mui/material";
 import { supabase } from "../lib/supabase";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import LocalPhoneIcon from "@mui/icons-material/LocalPhone";
-import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
@@ -46,7 +46,11 @@ export default function DriverProfiles() {
   // FILTER UI state
   const [filterName, setFilterName] = useState("");
   const [filterPhone, setFilterPhone] = useState("");
-  const [filterLicense, setFilterLicense] = useState(""); 
+  const [filterLicense, setFilterLicense] = useState("");
+
+  // Pagination
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const fetchDrivers = async () => {
     setLoading(true);
@@ -63,7 +67,6 @@ export default function DriverProfiles() {
         `
         );
       if (errDrivers) throw errDrivers;
-
       setDrivers(driversData || []);
     } catch (error) {
       alert("Failed to load drivers: " + (error.message || error));
@@ -74,6 +77,11 @@ export default function DriverProfiles() {
   useEffect(() => {
     fetchDrivers();
   }, []);
+
+  // Reset page whenever filters change
+  useEffect(() => {
+    setPage(0);
+  }, [filterName, filterPhone, filterLicense]);
 
   const filteredDrivers = useMemo(() => {
     let filtered = [...drivers];
@@ -94,11 +102,14 @@ export default function DriverProfiles() {
       });
     }
     return filtered.sort((a, b) =>
-      (a.name || "")
-        .toLowerCase()
-        .localeCompare((b.name || "").toLowerCase())
+      (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase())
     );
   }, [drivers, filterName, filterPhone, filterLicense]);
+
+  const paginatedDrivers = useMemo(() => {
+    const start = page * rowsPerPage;
+    return filteredDrivers.slice(start, start + rowsPerPage);
+  }, [filteredDrivers, page, rowsPerPage]);
 
   const openAdjustDialog = (driver) => {
     setSelectedDriver(driver);
@@ -156,6 +167,8 @@ export default function DriverProfiles() {
       <Typography variant="h4" gutterBottom color="primary">
         Driver Profiles
       </Typography>
+
+      {/* Filters */}
       <Box
         sx={{
           mb: 3,
@@ -189,7 +202,7 @@ export default function DriverProfiles() {
               value={filterPhone}
               onChange={(e) => setFilterPhone(e.target.value)}
               variant="outlined"
-               placeholder="Search by Phone"
+              placeholder="Search by Phone"
               fullWidth
               size="small"
               InputProps={{
@@ -228,6 +241,7 @@ export default function DriverProfiles() {
         </Grid>
       </Box>
 
+      {/* Table */}
       {loading ? (
         <Box sx={{ py: 4, textAlign: "center" }}>
           <CircularProgress />
@@ -237,30 +251,10 @@ export default function DriverProfiles() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    {/* <BadgeOutlinedIcon fontSize="small" /> */}
-                    <span>Name</span>
-                  </Stack>
-                </TableCell>
-                <TableCell>
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    {/* <LocalPhoneIcon fontSize="small" /> */}
-                    <span>Phone</span>
-                  </Stack>
-                </TableCell>
-                <TableCell>
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    {/* <Chip label="License" size="small" /> */}
-                    <span>Status</span>
-                  </Stack>
-                </TableCell>
-                <TableCell>
-                  <Stack direction="row" alignItems="center" gap={1}>
-                    {/* <AccountBalanceWalletIcon fontSize="small" /> */}
-                    <span>Wallet&nbsp;(₹)</span>
-                  </Stack>
-                </TableCell>
+                <TableCell>Name</TableCell>
+                <TableCell>Phone</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Wallet&nbsp;(₹)</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -272,16 +266,10 @@ export default function DriverProfiles() {
                   </TableCell>
                 </TableRow>
               )}
-              {filteredDrivers.map((driver) => {
+              {paginatedDrivers.map((driver) => {
                 const isVerified = driver.driver_documents?.is_verified === true;
                 return (
-                  <TableRow
-                    key={driver.id}
-                    sx={{
-                      background:
-                        "linear-gradient(80deg, #e0f7fa 0, #f5f5f5 100%)",
-                    }}
-                  >
+                  <TableRow key={driver.id}>
                     <TableCell>
                       <Stack direction="row" alignItems="center" spacing={2}>
                         <Avatar sx={{ bgcolor: "#0097a7" }}>
@@ -296,9 +284,7 @@ export default function DriverProfiles() {
                         </Typography>
                       </Stack>
                     </TableCell>
-                    <TableCell>
-                      <p style={{ margin: 0 }}>{driver.phone || "-"}</p>
-                    </TableCell>
+                    <TableCell>{driver.phone || "-"}</TableCell>
                     <TableCell>
                       <Chip
                         label={isVerified ? "Verified" : "Not Verified"}
@@ -317,16 +303,7 @@ export default function DriverProfiles() {
                     <TableCell>
                       <Chip
                         label={`₹${driver.wallet_balance?.toFixed(2) ?? "0.00"}`}
-                        sx={{
-                          background:
-                            adjustType === "incentive"
-                              ? "#c8e6c9"
-                              : "#ffcdd2",
-                          fontWeight: "bold",
-                        }}
-                        color={
-                          driver.wallet_balance > 0 ? "success" : "default"
-                        }
+                        color={driver.wallet_balance > 0 ? "success" : "default"}
                         size="medium"
                         icon={<AccountBalanceWalletIcon fontSize="small" />}
                         variant="outlined"
@@ -349,17 +326,32 @@ export default function DriverProfiles() {
               })}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          {filteredDrivers.length > rowsPerPage && (
+            <TablePagination
+              component="div"
+              count={filteredDrivers.length}
+              page={page}
+              onPageChange={(e, newPage) => setPage(newPage)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(e) => {
+                setRowsPerPage(parseInt(e.target.value, 10));
+                setPage(0);
+              }}
+              rowsPerPageOptions={[5, 10, 25, 50]}
+            />
+          )}
         </TableContainer>
       )}
 
+      {/* Wallet Adjust Dialog */}
       <Dialog
         open={openDialog}
         onClose={closeAdjustDialog}
         maxWidth="xs"
         fullWidth
-        PaperProps={{
-          sx: { borderRadius: 3, boxShadow: 3 },
-        }}
+        PaperProps={{ sx: { borderRadius: 3, boxShadow: 3 } }}
       >
         <DialogTitle sx={{ background: "#1976d2", color: "#fff" }}>
           {adjustType === "incentive" ? "Add Incentive" : "Add Penalty"} for{" "}

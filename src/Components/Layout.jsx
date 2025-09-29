@@ -30,6 +30,7 @@ const dashboardItems = [
   { title: "Addons", screen: "/Addons" },
   { title: "Packages", screen: "/packages" },
   { title: "Orders", screen: "/orders" },
+  { title: "Hotel Bookings", screen: "/hotelbookings" },
   { title: "Trips", screen: "/trips" },
   { title: "BookingRequests", screen: "/BookingRequests" },
   // { title: "Pricing", screen: "/pricing" },

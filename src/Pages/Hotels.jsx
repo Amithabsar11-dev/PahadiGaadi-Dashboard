@@ -34,7 +34,7 @@ import {
   DialogTitle,
   Paper as MuiPaper,
 } from "@mui/material";
-import { Add, Delete } from "@mui/icons-material";
+import { ArrowBack, Add, Delete } from "@mui/icons-material";
 import { Edit, Visibility, Close } from "@mui/icons-material";
 import usePlacesAutocomplete, {
   getGeocode,
@@ -747,10 +747,24 @@ export default function HotelsAdmin() {
 
   return (
     <Box sx={{ maxWidth: 1200, mx: "auto", p: 2 }}>
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <Typography variant="h5" gutterBottom>
-          Hotels Admin Panel
-        </Typography>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {/* Back button only visible when addOpen is true */}
+          {addOpen && (
+            <IconButton onClick={() => setAddOpen(false)}>
+              <ArrowBack />
+            </IconButton>
+          )}
+          <Typography variant="h5">
+            Hotels Admin Panel
+          </Typography>
+        </div>
 
         {!addOpen && (
           <Button
@@ -826,7 +840,7 @@ export default function HotelsAdmin() {
             />
             {zoneError && <Typography color="error">{zoneError}</Typography>}
 
-            <FormControl fullWidth sx={{ mt: 2 }}>
+            <FormControl fullWidth>
               <InputLabel id="cluster-select-label">Cluster</InputLabel>
               <Select
                 labelId="cluster-select-label"
@@ -859,7 +873,6 @@ export default function HotelsAdmin() {
               value={selectedZone}
               fullWidth
               InputProps={{ readOnly: true }}
-              sx={{ mt: 2 }}
             />
 
             <TextField
@@ -1057,7 +1070,7 @@ export default function HotelsAdmin() {
                 >
                   {/* Room Type */}
                   <TextField
-                    label="Room Type"
+                    label="Room Type *"
                     value={room.room_type}
                     onChange={(e) =>
                       updateRoomType(idx, "room_type", e.target.value)
@@ -1066,7 +1079,7 @@ export default function HotelsAdmin() {
 
                   {/* Category */}
                   <TextField
-                    label="Category"
+                    label="Category *"
                     value={room.hotel_category}
                     onChange={(e) =>
                       updateRoomType(idx, "hotel_category", e.target.value)
@@ -1075,7 +1088,7 @@ export default function HotelsAdmin() {
 
                   {/* Manual Price */}
                   <TextField
-                    label="Manual Price"
+                    label="Manual Price *"
                     type="number"
                     value={room.manual_price}
                     onChange={(e) =>
@@ -1085,7 +1098,7 @@ export default function HotelsAdmin() {
 
                   {/* Base Occupancy */}
                   <TextField
-                    label="Base Occupancy"
+                    label="Base Occupancy *"
                     type="number"
                     value={room.base_occupancy}
                     onChange={(e) =>
@@ -1095,7 +1108,7 @@ export default function HotelsAdmin() {
 
                   {/* Max Occupancy */}
                   <TextField
-                    label="Max Occupancy"
+                    label="Max Occupancy *"
                     type="number"
                     value={room.max_occupancy}
                     onChange={(e) =>
@@ -1150,18 +1163,29 @@ export default function HotelsAdmin() {
 
                           <Grid item xs={12} md={4}>
                             <FormControl fullWidth>
-                              <InputLabel>Type</InputLabel>
                               <Select
-                                value={
-                                  room.extra_beds_info.type || "complimentary"
-                                }
+                                value={room.extra_beds_info.type || ""}
                                 onChange={(e) =>
                                   updateRoomType(idx, "extra_beds_info", {
                                     ...room.extra_beds_info,
                                     type: e.target.value,
                                   })
                                 }
+                                displayEmpty
+                                renderValue={(selected) => {
+                                  if (!selected) {
+                                    return (
+                                      <span style={{ color: "#999" }}>
+                                        Type
+                                      </span>
+                                    );
+                                  }
+                                  return selected;
+                                }}
                               >
+                                <MenuItem disabled value="">
+                                  Type
+                                </MenuItem>
                                 <MenuItem value="complimentary">
                                   Complimentary
                                 </MenuItem>
@@ -1261,12 +1285,8 @@ export default function HotelsAdmin() {
                                   </Typography>
 
                                   <FormControl fullWidth sx={{ mb: 2 }}>
-                                    <InputLabel>Type</InputLabel>
                                     <Select
-                                      value={
-                                        room.food_options[meal].type ||
-                                        "complimentary"
-                                      }
+                                      value={room.food_options[meal].type || ""}
                                       onChange={(e) => {
                                         const updated = {
                                           ...room.food_options,
@@ -1281,7 +1301,21 @@ export default function HotelsAdmin() {
                                           updated
                                         );
                                       }}
+                                      displayEmpty
+                                      renderValue={(selected) => {
+                                        if (!selected) {
+                                          return (
+                                            <span style={{ color: "#999" }}>
+                                              Type
+                                            </span>
+                                          );
+                                        }
+                                        return selected;
+                                      }}
                                     >
+                                      <MenuItem disabled value="">
+                                        Type
+                                      </MenuItem>
                                       <MenuItem value="complimentary">
                                         Complimentary
                                       </MenuItem>

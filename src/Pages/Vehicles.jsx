@@ -9,14 +9,20 @@ import {
   Button,
   Checkbox,
   FormControlLabel,
+  IconButton,
   Box,
-  CircularProgress,
 } from "@mui/material";
 import PhotoCamera from "@mui/icons-material/PhotoCamera";
 import { supabase } from "../lib/supabase";
+import { ArrowBack } from "@mui/icons-material";
 import { useLocation, useNavigate } from "react-router-dom";
 
-const VEHICLE_TYPES = ["Shared Taxi", "Private Taxi", "Shared Bus", "Private Bus"];
+const VEHICLE_TYPES = [
+  "Shared Taxi",
+  "Private Taxi",
+  "Shared Bus",
+  "Private Bus",
+];
 
 const SEATER_OPTIONS = [
   { label: "1-4", value: "1-4" },
@@ -32,62 +38,54 @@ const VEHICLE_CATEGORIES_MAPPING = {
   "22-30": "Extra Large",
 };
 
-const VEHICLE_CATEGORIES = [
-  { name: "Alto", type: ["Shared Taxi", "Private Taxi"], seaterRange: "1-4" },
-  { name: "Bolero", type: ["Shared Taxi", "Private Taxi"], seaterRange: "5-7" },
-  { name: "Ertiga", type: ["Private Taxi"], seaterRange: "5-7" },
-  { name: "Innova", type: ["Private Taxi"], seaterRange: "5-7" },
-  { name: "Traveller", type: ["Private Bus"], seaterRange: "8-22" },
-  { name: "Urbania", type: ["Private Bus"], seaterRange: "8-22" },
-  { name: "Economy Bus", type: ["Private Bus"], seaterRange: "22-30" },
-  { name: "Premium Bus", type: ["Private Bus"], seaterRange: "22-30" },
-  { name: "Luxury Bus", type: ["Private Bus"], seaterRange: "22-30" },
-];
-
-const getModelsBySeaterAndType = (seaterRange, vehicleType) => {
-  if (!seaterRange || !vehicleType) return [];
-  return VEHICLE_CATEGORIES.filter(
-    (cat) => cat.seaterRange === seaterRange && cat.type.includes(vehicleType)
-  ).map((cat) => cat.name);
-};
-
 export default function VehicleForm({ onSuccess }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { model: editModel, isEditing } = location.state || {};
 
-  const [vehicleType, setVehicleType] = useState(editModel?.vehicles?.vehicleType || "");
+  const [vehicleType, setVehicleType] = useState(
+    editModel?.vehicles?.vehicleType || ""
+  );
   const [seaterRange, setSeaterRange] = useState(editModel?.seater_range || "");
   const [modelName, setModelName] = useState(editModel?.model_name || "");
-  const [vehicleCategory, setVehicleCategory] = useState(editModel?.vehicle_category || "");
+  const [vehicleCategory, setVehicleCategory] = useState(
+    editModel?.vehicle_category || ""
+  );
   const [serviceName, setServiceName] = useState(editModel?.service_name || "");
   const [acType, setAcType] = useState(editModel?.ac_type || "");
   const [hasCarrier, setHasCarrier] = useState(editModel?.has_carrier || false);
-  const [imageFiles, setImageFiles] = useState(editModel?.image_url ? [{ url: editModel.image_url, file: null }] : []);
+  const [imageFiles, setImageFiles] = useState(
+    editModel?.image_url ? [{ url: editModel.image_url, file: null }] : []
+  );
   const [loading, setLoading] = useState(false);
 
+  // Auto-set category & clear model name when seater range changes
   useEffect(() => {
     if (seaterRange && VEHICLE_CATEGORIES_MAPPING[seaterRange]) {
       setVehicleCategory(VEHICLE_CATEGORIES_MAPPING[seaterRange]);
     } else {
       setVehicleCategory("");
     }
+
+    // Clear model name when seater range changes
+    setModelName("");
   }, [seaterRange]);
 
+  // Reset values when adding a new vehicle
   useEffect(() => {
     if (!isEditing) {
       setModelName("");
       setImageFiles([]);
     }
-  }, [seaterRange, vehicleType, isEditing]);
-
-  const availableModels = getModelsBySeaterAndType(seaterRange, vehicleType);
+  }, [isEditing]);
 
   const uploadImage = async (file) => {
     try {
       const ext = file.name.split(".").pop();
       const filePath = `admin/vehicle-models/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from("vehicles").upload(filePath, file);
+      const { error } = await supabase.storage
+        .from("vehicles")
+        .upload(filePath, file);
       if (error) throw error;
       const { data } = supabase.storage.from("vehicles").getPublicUrl(filePath);
       return data.publicUrl;
@@ -98,7 +96,10 @@ export default function VehicleForm({ onSuccess }) {
 
   const handleAddImages = (e) => {
     const files = Array.from(e.target.files).slice(0, 5 - imageFiles.length);
-    const newFiles = files.map((file) => ({ file, url: URL.createObjectURL(file) }));
+    const newFiles = files.map((file) => ({
+      file,
+      url: URL.createObjectURL(file),
+    }));
     setImageFiles((prev) => [...prev, ...newFiles]);
   };
 
@@ -118,7 +119,9 @@ export default function VehicleForm({ onSuccess }) {
       !acType ||
       (imageFiles.length === 0 && !isEditing)
     ) {
-      alert("Please fill all required fields including AC type and at least one image.");
+      alert(
+        "Please fill all required fields including AC type and at least one image."
+      );
       return;
     }
 
@@ -135,17 +138,15 @@ export default function VehicleForm({ onSuccess }) {
         throw new Error("Vehicle type not found in vehicles table");
       }
 
-      // Upload new images only (files which have non-null file object)
       const uploadedUrls = await Promise.all(
         imageFiles.map(async (img) => {
           if (img.file) {
             return await uploadImage(img.file);
           }
-          return img.url; // Existing image URL (no upload)
+          return img.url;
         })
       );
 
-      // For simplicity assume storing first image url in image_url field (extend as needed for multiple images)
       const imageUrl = uploadedUrls[0] || null;
 
       if (isEditing && editModel?.id) {
@@ -166,18 +167,20 @@ export default function VehicleForm({ onSuccess }) {
         if (updateError) throw updateError;
         alert("✅ Vehicle model updated successfully!");
       } else {
-        const { error: insertError } = await supabase.from("vehicles_model").insert([
-          {
-            vehicle_id: vehicleData.id,
-            model_name: modelName,
-            vehicle_category: vehicleCategory,
-            ac_type: acType,
-            has_carrier: hasCarrier,
-            image_url: imageUrl,
-            service_name: serviceName.trim(),
-            seater_range: seaterRange,
-          },
-        ]);
+        const { error: insertError } = await supabase
+          .from("vehicles_model")
+          .insert([
+            {
+              vehicle_id: vehicleData.id,
+              model_name: modelName,
+              vehicle_category: vehicleCategory,
+              ac_type: acType,
+              has_carrier: hasCarrier,
+              image_url: imageUrl,
+              service_name: serviceName.trim(),
+              seater_range: seaterRange,
+            },
+          ]);
         if (insertError) throw insertError;
         alert("✅ Vehicle model added successfully!");
       }
@@ -192,19 +195,37 @@ export default function VehicleForm({ onSuccess }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} noValidate style={{ maxWidth: 600, margin: "auto", padding: 24 }}>
-      <Typography variant="h4" sx={{ mb: 4, fontWeight: "bold", textAlign: "center" }}>
-        {isEditing ? "✏️ Edit Vehicle Model" : "🚗 Add New Vehicle Model"}
-      </Typography>
+    <form
+      onSubmit={handleSubmit}
+      noValidate
+      style={{ maxWidth: 600, margin: "auto", padding: 24 }}
+    >
+      <Box display="flex" alignItems="center" mb={2}>
+        <IconButton onClick={() => navigate(-1)} edge="start">
+          <ArrowBack />
+        </IconButton>
+        <Typography
+          variant="h4"
+          sx={{ mb: 2, fontWeight: "bold", textAlign: "center" }}
+        >
+          {isEditing ? "✏️ Edit Vehicle Model" : "🚗 Add New Vehicle Model"}
+        </Typography>
+      </Box>
 
+      {/* Vehicle Type */}
       <FormControl fullWidth required sx={{ mb: 3 }}>
-        <InputLabel id="vehicle-type-label">Vehicle Type</InputLabel>
         <Select
-          labelId="vehicle-type-label"
-          label="Vehicle Type"
           value={vehicleType}
           onChange={(e) => setVehicleType(e.target.value)}
+          displayEmpty
+          renderValue={(selected) => {
+            if (!selected) {
+              return <span style={{ color: "#999" }}>Vehicle Type</span>;
+            }
+            return selected;
+          }}
         >
+          <MenuItem value="">Vehicle Type</MenuItem>
           {VEHICLE_TYPES.map((type) => (
             <MenuItem key={type} value={type}>
               {type}
@@ -213,14 +234,20 @@ export default function VehicleForm({ onSuccess }) {
         </Select>
       </FormControl>
 
+      {/* Seater Range */}
       <FormControl fullWidth required sx={{ mb: 3 }}>
-        <InputLabel id="seater-range-label">Seater Capacity</InputLabel>
         <Select
-          labelId="seater-range-label"
-          label="Seater Capacity"
           value={seaterRange}
           onChange={(e) => setSeaterRange(e.target.value)}
+          displayEmpty
+          renderValue={(selected) => {
+            if (!selected) {
+              return <span style={{ color: "#999" }}>Seater Capacity</span>;
+            }
+            return SEATER_OPTIONS.find((opt) => opt.value === selected)?.label;
+          }}
         >
+          <MenuItem value="">Seater Capacity</MenuItem>
           {SEATER_OPTIONS.map(({ label, value }) => (
             <MenuItem key={value} value={value}>
               {label}
@@ -229,6 +256,7 @@ export default function VehicleForm({ onSuccess }) {
         </Select>
       </FormControl>
 
+      {/* Vehicle Category (auto-filled but editable) */}
       <TextField
         label="Vehicle Category"
         fullWidth
@@ -239,32 +267,18 @@ export default function VehicleForm({ onSuccess }) {
         helperText="Automatically set based on seater capacity; you can edit if needed."
       />
 
-      <FormControl
+      {/* Model Name (manual typing) */}
+      <TextField
+        label="Model Name"
         fullWidth
         required
         sx={{ mb: 3 }}
-        disabled={!seaterRange || !vehicleType || availableModels.length === 0}
-      >
-        <InputLabel id="model-name-label">Model Name</InputLabel>
-        <Select
-          labelId="model-name-label"
-          label="Model Name"
-          value={modelName}
-          onChange={(e) => setModelName(e.target.value)}
-          notched
-        >
-          {availableModels.length ? (
-            availableModels.map((model) => (
-              <MenuItem key={model} value={model}>
-                {model}
-              </MenuItem>
-            ))
-          ) : (
-            <MenuItem disabled>No available models</MenuItem>
-          )}
-        </Select>
-      </FormControl>
+        value={modelName}
+        onChange={(e) => setModelName(e.target.value)}
+        placeholder="Enter model (e.g., Alto, Bolero, Traveller)"
+      />
 
+      {/* Service Name */}
       <TextField
         label="Service Name"
         required
@@ -275,19 +289,26 @@ export default function VehicleForm({ onSuccess }) {
         placeholder="Enter service offering details"
       />
 
+      {/* AC Type */}
       <FormControl fullWidth required sx={{ mb: 3 }}>
-        <InputLabel id="ac-type-label">AC Type</InputLabel>
         <Select
-          labelId="ac-type-label"
-          label="AC Type"
           value={acType}
           onChange={(e) => setAcType(e.target.value)}
+          displayEmpty
+          renderValue={(selected) => {
+            if (!selected) {
+              return <span style={{ color: "#999" }}>AC Type</span>;
+            }
+            return selected;
+          }}
         >
+          <MenuItem value="">AC Type</MenuItem>
           <MenuItem value="AC">AC</MenuItem>
           <MenuItem value="Non AC">Non AC</MenuItem>
         </Select>
       </FormControl>
 
+      {/* Carrier Option */}
       <FormControlLabel
         control={
           <Checkbox
@@ -299,7 +320,16 @@ export default function VehicleForm({ onSuccess }) {
         sx={{ mb: 3 }}
       />
 
-      <Box sx={{ display: "flex", alignItems: "center", mb: 4, gap: 2, flexWrap: "wrap" }}>
+      {/* Image Upload */}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          mb: 4,
+          gap: 2,
+          flexWrap: "wrap",
+        }}
+      >
         <Button
           component="label"
           variant="outlined"
@@ -360,6 +390,7 @@ export default function VehicleForm({ onSuccess }) {
         ))}
       </Box>
 
+      {/* Submit */}
       <Button
         type="submit"
         variant="contained"

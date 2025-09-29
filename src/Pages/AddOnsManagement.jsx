@@ -191,7 +191,7 @@ export default function AddOnsManagement() {
                 <TableCell>Description</TableCell>
                 <TableCell>Price (₹)</TableCell>
                 <TableCell>Images</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell align="left">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -221,7 +221,7 @@ export default function AddOnsManagement() {
                       "-"
                     )}
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell align="left">
                     <IconButton
                       onClick={() => openEditForm(addOn)}
                       title="Edit"

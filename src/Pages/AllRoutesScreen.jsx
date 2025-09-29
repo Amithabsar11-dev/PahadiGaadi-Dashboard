@@ -32,6 +32,9 @@ export default function AllRoutesScreen() {
   const [loading, setLoading] = useState(false);
   const [previewRoute, setPreviewRoute] = useState(null);
 
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [routeToDelete, setRouteToDelete] = useState(null);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -80,16 +83,28 @@ export default function AllRoutesScreen() {
     setPreviewRoute(route);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this route?")) {
-      const { error } = await supabase.from("routes").delete().eq("id", id);
-      if (error) {
-        console.error("Delete error:", error);
-        alert("Failed to delete route");
-        return;
-      }
+  const confirmDelete = (route) => {
+    setRouteToDelete(route);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!routeToDelete) return;
+
+    const { error } = await supabase
+      .from("routes")
+      .delete()
+      .eq("id", routeToDelete.id);
+
+    if (error) {
+      console.error("Delete error:", error);
+      alert("Failed to delete route");
+    } else {
       fetchRoutes();
     }
+
+    setDeleteDialogOpen(false);
+    setRouteToDelete(null);
   };
 
   const handleAddRoute = () => {
@@ -131,12 +146,8 @@ export default function AllRoutesScreen() {
               <TableCell>Name</TableCell>
               <TableCell>Description</TableCell>
               <TableCell>Vehicle Type</TableCell>
-              <TableCell>Created At</TableCell>
-              <TableCell>Total Price</TableCell>
               <TableCell>Active</TableCell>
               <TableCell>Creator</TableCell>
-              {/* <TableCell>Points</TableCell>
-              <TableCell>Pricing Details</TableCell> */}
               <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -153,10 +164,6 @@ export default function AllRoutesScreen() {
                   <TableCell>{route.name}</TableCell>
                   <TableCell>{route.description}</TableCell>
                   <TableCell>{route.vehicleType}</TableCell>
-                  <TableCell>
-                    {new Date(route.createdAt).toLocaleString()}
-                  </TableCell>
-                  <TableCell>₹ {route.totalprice}</TableCell>
                   <TableCell>
                     <Switch
                       checked={route.isActive}
@@ -177,18 +184,6 @@ export default function AllRoutesScreen() {
                       </IconButton>
                     </Tooltip>
                   </TableCell>
-                  {/* <TableCell>
-                    {route.points?.map((pt, i) => (
-                      <div key={i}>{pt.name}</div>
-                    ))}
-                  </TableCell>
-                  <TableCell>
-                    {route.pricing?.map((p, i) => (
-                      <div key={i}>
-                        {p.from} → {p.to} — ₹{p.price || p.rate}
-                      </div>
-                    ))}
-                  </TableCell> */}
                   <TableCell align="center">
                     <Tooltip title="Edit">
                       <IconButton
@@ -212,7 +207,7 @@ export default function AllRoutesScreen() {
                       <IconButton
                         size="small"
                         color="error"
-                        onClick={() => handleDelete(route.id)}
+                        onClick={() => confirmDelete(route)}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -248,33 +243,32 @@ export default function AllRoutesScreen() {
             <strong>Active:</strong> {previewRoute?.isActive ? "Yes" : "No"}
           </Typography>
           <Typography gutterBottom>
-            <strong>Total Price:</strong> ₹{previewRoute?.totalprice}
-          </Typography>
-          {/* <Typography gutterBottom>
-            <strong>Points:</strong>
-            <ul>
-              {previewRoute?.points?.map((pt, i) => (
-                <li key={i}>{pt.name}</li>
-              ))}
-            </ul>
-          </Typography>
-          <Typography gutterBottom>
-            <strong>Pricing Details:</strong>
-            <ul>
-              {previewRoute?.pricing?.map((p, i) => (
-                <li key={i}>
-                  {p.from} → {p.to} — ₹{p.price || p.rate}
-                </li>
-              ))}
-            </ul>
-          </Typography> */}
-          <Typography gutterBottom>
             <strong>Created By:</strong> {previewRoute?.createdByName} (
             {previewRoute?.createdByRole})
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPreviewRoute(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Delete Route</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete{" "}
+            <strong>{routeToDelete?.name}</strong>?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>No</Button>
+          <Button onClick={handleDelete} color="error" autoFocus>
+            Yes, Delete
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

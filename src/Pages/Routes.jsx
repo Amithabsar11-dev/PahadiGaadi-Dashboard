@@ -18,11 +18,19 @@ import {
   FormControl,
   InputLabel,
 } from "@mui/material";
-import { AddCircleOutline, Delete, Clear as ClearIcon } from "@mui/icons-material";
-import usePlacesAutocomplete, { getGeocode, getLatLng } from "use-places-autocomplete";
+import {
+  AddCircleOutline,
+  Delete,
+  Clear as ClearIcon,
+} from "@mui/icons-material";
+import usePlacesAutocomplete, {
+  getGeocode,
+  getLatLng,
+} from "use-places-autocomplete";
 import { supabase } from "../lib/supabase";
 import { useLocation, useNavigate } from "react-router-dom";
 import clusters from "../utils/clusters";
+import { ArrowBack } from "@mui/icons-material";
 import { useAdminStore } from "../store/AdminStore";
 
 function isPointInPolygon(point, polygon) {
@@ -79,7 +87,9 @@ async function fetchZoneClusterFromLatLng(lat, lng, apiKey) {
 
         if (!districtComp) {
           districtComp = components.find(
-            (c) => c.types.includes("sublocality_level_1") || c.types.includes("locality")
+            (c) =>
+              c.types.includes("sublocality_level_1") ||
+              c.types.includes("locality")
           );
         }
         if (districtComp) {
@@ -158,7 +168,10 @@ async function fetchDrivingRoute(points, apiKey) {
   };
   const destination = {
     location: {
-      latLng: { latitude: points[points.length - 1].lat, longitude: points[points.length - 1].lng },
+      latLng: {
+        latitude: points[points.length - 1].lat,
+        longitude: points[points.length - 1].lng,
+      },
     },
   };
   const intermediates = points.slice(1, -1).map((pt) => ({
@@ -182,7 +195,10 @@ async function fetchDrivingRoute(points, apiKey) {
     }
   );
 
-  if (!response.ok) throw new Error(`Routes API error: ${response.status} ${response.statusText}`);
+  if (!response.ok)
+    throw new Error(
+      `Routes API error: ${response.status} ${response.statusText}`
+    );
 
   const json = await response.json();
   return json.routes?.[0] || null;
@@ -225,7 +241,11 @@ function PlaceAutocomplete({ label, value, onSelect, errorMsg, infoMsg }) {
       if (zoneClusterObj.cluster && zoneClusterObj.zone) {
         zoneInfo = `${zoneClusterObj.cluster} (${zoneClusterObj.zone})`;
       } else {
-        const reverseGeo = await fetchZoneClusterFromLatLng(lat, lng, GOOGLE_MAPS_API_KEY);
+        const reverseGeo = await fetchZoneClusterFromLatLng(
+          lat,
+          lng,
+          GOOGLE_MAPS_API_KEY
+        );
         zoneInfo = reverseGeo || "No Zone/Cluster";
       }
 
@@ -258,7 +278,11 @@ function PlaceAutocomplete({ label, value, onSelect, errorMsg, infoMsg }) {
         helperText={errorMsg || infoMsg}
         InputProps={{
           endAdornment: value ? (
-            <IconButton onClick={handleClear} size="small" aria-label="clear input">
+            <IconButton
+              onClick={handleClear}
+              size="small"
+              aria-label="clear input"
+            >
               <ClearIcon fontSize="small" />
             </IconButton>
           ) : null,
@@ -277,7 +301,11 @@ function PlaceAutocomplete({ label, value, onSelect, errorMsg, infoMsg }) {
           {data.map(({ place_id, description }) => (
             <Box
               key={place_id}
-              sx={{ p: 1, cursor: "pointer", "&:hover": { backgroundColor: "action.hover" } }}
+              sx={{
+                p: 1,
+                cursor: "pointer",
+                "&:hover": { backgroundColor: "action.hover" },
+              }}
               onClick={() => handleSelect(description)}
               tabIndex={0}
             >
@@ -296,7 +324,12 @@ export default function RoutesManager() {
 
   const { route: editRoute, isEditing } = location.state || {};
 
-  const vehicleOptions = ["Private Taxi", "Private Bus", "Shared Bus", "Shared Taxi"];
+  const vehicleOptions = [
+    "Private Taxi",
+    "Private Bus",
+    "Shared Bus",
+    "Shared Taxi",
+  ];
   const adminName = useAdminStore((s) => s.adminName);
   const adminRole = useAdminStore((s) => s.adminRole);
 
@@ -305,8 +338,12 @@ export default function RoutesManager() {
   const [vehicleType, setVehicleType] = useState(editRoute?.vehicleType || "");
   const [isActive, setIsActive] = useState(editRoute?.isActive ?? true);
   const [source, setSource] = useState(editRoute?.points?.[0] || null);
-  const [middlePoints, setMiddlePoints] = useState(editRoute?.points?.slice(1, -1) || []);
-  const [destination, setDestination] = useState(editRoute?.points?.slice(-1)[0] || null);
+  const [middlePoints, setMiddlePoints] = useState(
+    editRoute?.points?.slice(1, -1) || []
+  );
+  const [destination, setDestination] = useState(
+    editRoute?.points?.slice(-1)[0] || null
+  );
   const [sharedRates, setSharedRates] = useState([]);
   const [segments, setSegments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -314,12 +351,18 @@ export default function RoutesManager() {
   const [destinationError, setDestinationError] = useState("");
   const [midErrors, setMidErrors] = useState([]);
   const [sourceInfo, setSourceInfo] = useState(source?.zoneInfo || "");
-  const [destinationInfo, setDestinationInfo] = useState(destination?.zoneInfo || "");
+  const [destinationInfo, setDestinationInfo] = useState(
+    destination?.zoneInfo || ""
+  );
   const [midInfos, setMidInfos] = useState([]);
 
   useEffect(() => {
     async function loadRouteData() {
-      const points = [source, ...middlePoints.filter(Boolean), destination].filter(Boolean);
+      const points = [
+        source,
+        ...middlePoints.filter(Boolean),
+        destination,
+      ].filter(Boolean);
       if (!vehicleType || points.length < 2) {
         setSegments([]);
         return;
@@ -362,7 +405,8 @@ export default function RoutesManager() {
         if (!vehicleType.toLowerCase().includes("private")) {
           setSharedRates(
             segmentsArr.map(
-              (seg, idx) => sharedRates[idx] || { from: seg.from, to: seg.to, rate: "" }
+              (seg, idx) =>
+                sharedRates[idx] || { from: seg.from, to: seg.to, rate: "" }
             )
           );
         }
@@ -424,7 +468,9 @@ export default function RoutesManager() {
       }
       const seg = segments[idx - 1] || {};
       const cumulativeDist = seg.cumulativeDist || 0;
-      const segDurationHr = seg.durationSec ? `${(seg.durationSec / 3600).toFixed(1)}h` : "0.0h";
+      const segDurationHr = seg.durationSec
+        ? `${(seg.durationSec / 3600).toFixed(1)}h`
+        : "0.0h";
       let estimatedCost = 0;
       if (
         vehicleType &&
@@ -432,7 +478,9 @@ export default function RoutesManager() {
         typeof seg.distanceKm === "number" &&
         typeof seg.durationMin === "number"
       ) {
-        estimatedCost = Number(calculatePrivatePrice(seg.distanceKm, seg.durationMin));
+        estimatedCost = Number(
+          calculatePrivatePrice(seg.distanceKm, seg.durationMin)
+        );
       } else if (sharedRates[idx - 1] && sharedRates[idx - 1].rate) {
         estimatedCost = Number(sharedRates[idx - 1].rate);
       }
@@ -460,7 +508,9 @@ export default function RoutesManager() {
       .toFixed(2);
 
   const getTotalPriceShared = () =>
-    sharedRates.reduce((acc, { rate }) => acc + (Number(rate) || 0), 0).toFixed(2);
+    sharedRates
+      .reduce((acc, { rate }) => acc + (Number(rate) || 0), 0)
+      .toFixed(2);
 
   const handleSharedRateChange = (idx, val) => {
     setSharedRates((sr) =>
@@ -574,9 +624,14 @@ export default function RoutesManager() {
 
   return (
     <Box maxWidth={900} mx="auto" p={3}>
-      <Typography variant="h5" gutterBottom>
-        {isEditing ? "Edit Route" : "Create Route"}
-      </Typography>
+      <Box display="flex" alignItems="center" mb={2}>
+        <IconButton onClick={() => navigate(-1)} edge="start">
+          <ArrowBack />
+        </IconButton>
+        <Typography variant="h5" gutterBottom sx={{ ml: 1 }}>
+          {isEditing ? "Edit Route" : "Create Route"}
+        </Typography>
+      </Box>
       <TextField
         label="Route Name"
         fullWidth
@@ -722,7 +777,9 @@ export default function RoutesManager() {
                     </TableCell>
                     <TableCell>{seg.distanceKm}</TableCell>
                     <TableCell>{seg.durationMin}</TableCell>
-                    <TableCell>{calculatePrivatePrice(seg.distanceKm, seg.durationMin)}</TableCell>
+                    <TableCell>
+                      {calculatePrivatePrice(seg.distanceKm, seg.durationMin)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -744,8 +801,19 @@ export default function RoutesManager() {
         />
       </Box>
 
-      <Button variant="contained" onClick={handleSubmit} disabled={loading} fullWidth>
-        {loading ? (isEditing ? "Updating..." : "Creating...") : isEditing ? "Update Route" : "Create Route"}
+      <Button
+        variant="contained"
+        onClick={handleSubmit}
+        disabled={loading}
+        fullWidth
+      >
+        {loading
+          ? isEditing
+            ? "Updating..."
+            : "Creating..."
+          : isEditing
+          ? "Update Route"
+          : "Create Route"}
       </Button>
     </Box>
   );

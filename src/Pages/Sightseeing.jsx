@@ -22,6 +22,7 @@ import {
   DialogContent,
   DialogActions,
 } from "@mui/material";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -488,10 +489,20 @@ export default function SightseeingPointsScreen() {
 
       {formOpen ? (
         <Box>
-          <Typography variant="h5" mb={2}>
-            {editPoint ? "Edit Sightseeing Point" : "Add Sightseeing Point"}
-          </Typography>
-
+          <Box sx={{ display: "flex", alignItems: "center", mb: 2, gap: 1 }}>
+            <IconButton
+              onClick={() => {
+                setFormOpen(false);
+                setEditPoint(null);
+                setSelectedFiles([]);
+              }}
+            >
+             <ArrowBackIcon />
+            </IconButton>
+            <Typography variant="h5">
+              {editPoint ? "Edit Sightseeing Point" : "Add Sightseeing Point"}
+            </Typography>
+          </Box>
           <TextField
             select
             label="Select Route"
@@ -501,8 +512,7 @@ export default function SightseeingPointsScreen() {
             fullWidth
             sx={{ mb: 2 }}
           >
-            <option value="" disabled>
-            </option>
+            <option value="" disabled></option>
             {routes.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -623,7 +633,7 @@ export default function SightseeingPointsScreen() {
             SelectProps={{ native: true }}
             fullWidth
             sx={{ mb: 2 }}
-            style={{paddingTop: 20}}
+            style={{ paddingTop: 20 }}
           >
             <option value="" disabled>
               Select Mode

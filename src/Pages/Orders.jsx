@@ -348,7 +348,7 @@ export default function Orders() {
                 <TableCell>Pickup City</TableCell>
                 <TableCell>Drop City</TableCell>
                 <TableCell>Pickup Time</TableCell>
-                <TableCell>Drop Time</TableCell>
+                {/* <TableCell>Drop Time</TableCell> */}
                 <TableCell>Vehicle Model</TableCell>
                 <TableCell>Vehicle Type</TableCell>
                 <TableCell>Status</TableCell>
@@ -371,7 +371,7 @@ export default function Orders() {
                     <TableCell>{order.pickupCity || "-"}</TableCell>
                     <TableCell>{order.dropCity || "-"}</TableCell>
                     <TableCell>{formatDate(order.pickupTime)}</TableCell>
-                    <TableCell>{formatDate(order.dropTime)}</TableCell>
+                    {/* <TableCell>{formatDate(order.dropTime)}</TableCell> */}
                     <TableCell>{order.vehicleModel || "-"}</TableCell>
                     <TableCell>{order.vehicleType || "-"}</TableCell>
                     <TableCell>{order.bookingStatus || "-"}</TableCell>

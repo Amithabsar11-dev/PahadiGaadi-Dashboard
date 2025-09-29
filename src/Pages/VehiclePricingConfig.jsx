@@ -310,7 +310,7 @@ export default function VehiclePricingTable() {
         </Button>
       </Box>
 
-      <Paper sx={{ maxWidth: 950, margin: "auto", p: 4 }}>
+      <Paper sx={{ maxWidth: 1100, margin: "auto", p: 4 }}>
         {!dialogOpen && (
           <>
             {Object.keys(grouped).length === 0 && <Typography>No pricing found.</Typography>}
