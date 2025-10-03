@@ -72,7 +72,7 @@ const HOTEL_CONFIG = {
   },
 };
 
-const GOOGLE_MAPS_API_KEY = "AIzaSyA0qsyU5sKAdS_k2g44Nqv5cUjKY8I1zvI"; // Put your API key here
+const GOOGLE_MAPS_API_KEY = "AIzaSyA0qsyU5sKAdS_k2g44Nqv5cUjKY8I1zvI";
 
 async function fetchZoneClusterFromLatLng(lat, lng) {
   try {
@@ -204,6 +204,8 @@ export default function HotelsAdmin() {
   const [zoneClusters, setZoneClusters] = useState([]);
   const [selectedCluster, setSelectedCluster] = useState("");
   const [selectedZone, setSelectedZone] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteHotelId, setDeleteHotelId] = useState(null);
 
   const [foodOptions, setFoodOptions] = useState({
     breakfast: { selected: false, type: "complimentary", price: "" },
@@ -761,9 +763,7 @@ export default function HotelsAdmin() {
               <ArrowBack />
             </IconButton>
           )}
-          <Typography variant="h5">
-            Hotels Admin Panel
-          </Typography>
+          <Typography variant="h5">Hotels Admin Panel</Typography>
         </div>
 
         {!addOpen && (
@@ -1544,19 +1544,8 @@ export default function HotelsAdmin() {
                           size="small"
                           color="error"
                           onClick={() => {
-                            if (window.confirm("Delete this hotel?")) {
-                              supabase
-                                .from("hotels_model")
-                                .delete()
-                                .eq("id", hotel.id)
-                                .then(({ error }) => {
-                                  if (error) alert(error.message);
-                                  else
-                                    setHotels(
-                                      hotels.filter((h) => h.id !== hotel.id)
-                                    );
-                                });
-                            }
+                            setDeleteHotelId(hotel.id);
+                            setDeleteDialogOpen(true);
                           }}
                         >
                           <Delete />
@@ -1680,6 +1669,34 @@ export default function HotelsAdmin() {
 
         <DialogActions>
           <Button onClick={() => setPreviewHotel(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogContent>
+          Are you sure you want to delete this hotel?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button
+            color="error"
+            onClick={async () => {
+              // do deletion here (call supabase to delete)
+              await supabase
+                .from("hotelsmodel")
+                .delete()
+                .eq("id", deleteHotelId);
+              setHotels(hotels.filter((h) => h.id !== deleteHotelId));
+              setDeleteDialogOpen(false);
+            }}
+          >
+            Delete
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

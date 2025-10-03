@@ -28,6 +28,9 @@ import { supabase } from "../lib/supabase";
 export default function PackageListFullDetails() {
   const [packages, setPackages] = useState([]);
   const [expanded, setExpanded] = useState({});
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [toDeletePkgId, setToDeletePkgId] = useState(null);
+
   const navigate = useNavigate();
 
   const fetchPackages = async () => {
@@ -143,7 +146,10 @@ export default function PackageListFullDetails() {
                     <Tooltip title="Delete">
                       <IconButton
                         color="error"
-                        onClick={() => handleDelete(pkg.id)}
+                        onClick={() => {
+                          setDeleteDialogOpen(true);
+                          setToDeletePkgId(pkg.id);
+                        }}
                       >
                         <Delete />
                       </IconButton>
@@ -269,6 +275,29 @@ export default function PackageListFullDetails() {
           </TableBody>
         </Table>
       </TableContainer>
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Delete Package</DialogTitle>
+        <DialogContent>
+          <Typography>Delete this package and all its data?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>No</Button>
+          <Button
+            color="error"
+            onClick={async () => {
+              await supabase.from("packages").delete().eq("id", toDeletePkgId);
+              setDeleteDialogOpen(false);
+              setToDeletePkgId(null);
+              fetchPackages();
+            }}
+          >
+            Yes
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

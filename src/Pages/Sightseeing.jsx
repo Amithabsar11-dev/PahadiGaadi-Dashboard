@@ -153,6 +153,8 @@ export default function SightseeingPointsScreen() {
   const [formOpen, setFormOpen] = useState(false);
   const [editPoint, setEditPoint] = useState(null);
   const [previewPoint, setPreviewPoint] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [toDeletePointId, setToDeletePointId] = useState(null);
 
   const handleChange = (field, value) =>
     setForm((f) => ({
@@ -497,7 +499,7 @@ export default function SightseeingPointsScreen() {
                 setSelectedFiles([]);
               }}
             >
-             <ArrowBackIcon />
+              <ArrowBackIcon />
             </IconButton>
             <Typography variant="h5">
               {editPoint ? "Edit Sightseeing Point" : "Add Sightseeing Point"}
@@ -888,7 +890,10 @@ export default function SightseeingPointsScreen() {
                           <IconButton
                             aria-label="delete"
                             color="error"
-                            onClick={() => handleDelete(pt.id)}
+                            onClick={() => {
+                              setDeleteDialogOpen(true);
+                              setToDeletePointId(pt.id);
+                            }}
                           >
                             <DeleteIcon />
                           </IconButton>
@@ -973,6 +978,40 @@ export default function SightseeingPointsScreen() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPreviewPoint(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Delete Sightseeing Point</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this sightseeing point?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>No</Button>
+          <Button
+            color="error"
+            onClick={async () => {
+              const { error } = await supabase
+                .from("sightseeing_points")
+                .delete()
+                .eq("id", toDeletePointId);
+              if (error) {
+                alert("Failed to delete sightseeing point: " + error.message);
+              } else {
+                setPoints((prev) =>
+                  prev.filter((pt) => pt.id !== toDeletePointId)
+                );
+              }
+              setDeleteDialogOpen(false);
+              setToDeletePointId(null);
+            }}
+          >
+            Yes
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -32,9 +32,11 @@ export default function AddOnsManagement() {
     title: "",
     description: "",
     price: "",
-    images: [], 
+    images: [],
   });
   const [uploading, setUploading] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [toDeleteAddOnId, setToDeleteAddOnId] = useState(null);
 
   useEffect(() => {
     fetchAddOns();
@@ -109,9 +111,13 @@ export default function AddOnsManagement() {
         uploadedUrls.push(img.url);
       } else if (img.file) {
         const ext = img.file.name.split(".").pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${ext}`;
+        const fileName = `${Date.now()}_${Math.random()
+          .toString(36)
+          .substring(2)}.${ext}`;
         const path = `add_ons/${fileName}`;
-        const { error } = await supabase.storage.from("add_ons").upload(path, img.file);
+        const { error } = await supabase.storage
+          .from("add_ons")
+          .upload(path, img.file);
         if (error) throw error;
         const { data } = supabase.storage.from("add_ons").getPublicUrl(path);
         uploadedUrls.push(data.publicUrl);
@@ -160,20 +166,17 @@ export default function AddOnsManagement() {
     setUploading(false);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this add-on?")) return;
-    const { error } = await supabase.from("add_ons").delete().eq("id", id);
-    if (error) {
-      alert("Delete failed: " + error.message);
-      return;
-    }
-    alert("Deleted successfully");
-    fetchAddOns();
-  };
 
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
         <Typography variant="h4">Add-Ons</Typography>
         <Button variant="contained" startIcon={<Add />} onClick={openAddForm}>
           Add Add-On
@@ -208,18 +211,21 @@ export default function AddOnsManagement() {
                   <TableCell>{addOn.description || "-"}</TableCell>
                   <TableCell>{addOn.price.toFixed(2)}</TableCell>
                   <TableCell>
-                    {addOn.images && addOn.images.length > 0 ? (
-                      addOn.images.map((url, idx) => (
-                        <img
-                          key={idx}
-                          src={url}
-                          alt={`addon_img_${idx}`}
-                          style={{ width: 40, height: 40, marginRight: 8, borderRadius: 4 }}
-                        />
-                      ))
-                    ) : (
-                      "-"
-                    )}
+                    {addOn.images && addOn.images.length > 0
+                      ? addOn.images.map((url, idx) => (
+                          <img
+                            key={idx}
+                            src={url}
+                            alt={`addon_img_${idx}`}
+                            style={{
+                              width: 40,
+                              height: 40,
+                              marginRight: 8,
+                              borderRadius: 4,
+                            }}
+                          />
+                        ))
+                      : "-"}
                   </TableCell>
                   <TableCell align="left">
                     <IconButton
@@ -237,7 +243,10 @@ export default function AddOnsManagement() {
                       <Visibility />
                     </IconButton>
                     <IconButton
-                      onClick={() => handleDelete(addOn.id)}
+                      onClick={() => {
+                        setDeleteDialogOpen(true);
+                        setToDeleteAddOnId(addOn.id);
+                      }}
                       title="Delete"
                       sx={{ color: "red" }}
                     >
@@ -252,8 +261,15 @@ export default function AddOnsManagement() {
       )}
 
       {/* Add/Edit Form Dialog */}
-      <Dialog open={showForm} onClose={() => setShowForm(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingAddOn ? "Edit Add-On" : "Add New Add-On"}</DialogTitle>
+      <Dialog
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {editingAddOn ? "Edit Add-On" : "Add New Add-On"}
+        </DialogTitle>
         <DialogContent>
           <TextField
             label="Title"
@@ -300,7 +316,12 @@ export default function AddOnsManagement() {
                 <img
                   src={img.url}
                   alt={`img_${idx}`}
-                  style={{ width: 80, height: 80, borderRadius: 8, objectFit: "cover" }}
+                  style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: 8,
+                    objectFit: "cover",
+                  }}
                 />
                 <IconButton
                   size="small"
@@ -324,14 +345,23 @@ export default function AddOnsManagement() {
           <Button onClick={() => setShowForm(false)} disabled={uploading}>
             Cancel
           </Button>
-          <Button onClick={handleFormSubmit} disabled={uploading} variant="contained">
+          <Button
+            onClick={handleFormSubmit}
+            disabled={uploading}
+            variant="contained"
+          >
             {uploading ? "Saving..." : "Save"}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Preview Dialog */}
-      <Dialog open={!!previewAddOn} onClose={closePreviewDialog} maxWidth="sm" fullWidth>
+      <Dialog
+        open={!!previewAddOn}
+        onClose={closePreviewDialog}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Preview Add-On</DialogTitle>
         <DialogContent dividers>
           {previewAddOn && (
@@ -339,8 +369,12 @@ export default function AddOnsManagement() {
               <Typography variant="h6" gutterBottom>
                 {previewAddOn.title}
               </Typography>
-              <Typography gutterBottom>{previewAddOn.description || "-"}</Typography>
-              <Typography gutterBottom>Price: ₹{previewAddOn.price.toFixed(2)}</Typography>
+              <Typography gutterBottom>
+                {previewAddOn.description || "-"}
+              </Typography>
+              <Typography gutterBottom>
+                Price: ₹{previewAddOn.price.toFixed(2)}
+              </Typography>
               {previewAddOn.images && previewAddOn.images.length > 0 ? (
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                   {previewAddOn.images.map((imgUrl, idx) => (
@@ -365,6 +399,37 @@ export default function AddOnsManagement() {
         </DialogContent>
         <DialogActions>
           <Button onClick={closePreviewDialog}>Close</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Delete Add-On</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to delete this add-on?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>No</Button>
+          <Button
+            color="error"
+            onClick={async () => {
+              const { error } = await supabase
+                .from("add_ons")
+                .delete()
+                .eq("id", toDeleteAddOnId);
+              if (error) {
+                alert("Delete failed: " + error.message);
+              } else {
+                alert("Deleted successfully");
+                fetchAddOns();
+              }
+              setDeleteDialogOpen(false);
+              setToDeleteAddOnId(null);
+            }}
+          >
+            Yes
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

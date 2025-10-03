@@ -63,7 +63,9 @@ export default function VehiclePricingTable() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState(null);
 
-  const [selectedVehicleCategories, setSelectedVehicleCategories] = useState([]);
+  const [selectedVehicleCategories, setSelectedVehicleCategories] = useState(
+    []
+  );
   const [acType, setAcType] = useState("");
   const [rideType, setRideType] = useState("one-way");
   const [pricePerKm, setPricePerKm] = useState("");
@@ -77,6 +79,8 @@ export default function VehiclePricingTable() {
   const [applySlabToAll, setApplySlabToAll] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [deleteId, setDeleteId] = useState(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   // Fetch data on mount
   useEffect(() => {
@@ -116,7 +120,8 @@ export default function VehiclePricingTable() {
     setSelectedClusters(filteredSelectedClusters);
 
     setAllSelected(
-      filteredSelectedClusters.length === combinedClusters.length && combinedClusters.length > 0
+      filteredSelectedClusters.length === combinedClusters.length &&
+        combinedClusters.length > 0
     );
   }, [selectedZones, zonesClusters]);
 
@@ -187,7 +192,8 @@ export default function VehiclePricingTable() {
     setClusters(Array.isArray(row.clusters) ? row.clusters : []);
     setSelectedClusters(Array.isArray(row.clusters) ? row.clusters : []);
     setAllSelected(
-      Array.isArray(row.clusters) && row.clusters.length === (row.clusters?.length || 0)
+      Array.isArray(row.clusters) &&
+        row.clusters.length === (row.clusters?.length || 0)
     );
 
     setUseSlab(row.use_slab ?? false);
@@ -202,14 +208,20 @@ export default function VehiclePricingTable() {
   }
 
   async function handleDelete(id) {
-    if (!window.confirm("Are you sure you want to delete this pricing record?")) return;
-    const { error } = await supabase.from("vehicle_pricing_config").delete().eq("id", id);
+    if (!window.confirm("Are you sure you want to delete this pricing record?"))
+      return;
+    const { error } = await supabase
+      .from("vehicle_pricing_config")
+      .delete()
+      .eq("id", id);
     if (error) {
       setErrorMsg("Delete failed: " + error.message);
       return;
     }
     setSuccessMsg("Pricing record deleted.");
-    const { data: pricingData } = await supabase.from("vehicle_pricing_config").select("*");
+    const { data: pricingData } = await supabase
+      .from("vehicle_pricing_config")
+      .select("*");
     setPricingRows(pricingData || []);
   }
 
@@ -278,7 +290,9 @@ export default function VehiclePricingTable() {
         ...newEntry,
         vehicle_category: cat,
       }));
-      const { error } = await supabase.from("vehicle_pricing_config").insert(inserts);
+      const { error } = await supabase
+        .from("vehicle_pricing_config")
+        .insert(inserts);
       if (error) {
         setErrorMsg("Insert failed: " + error.message);
         return;
@@ -288,9 +302,36 @@ export default function VehiclePricingTable() {
     setSuccessMsg(editId ? "Pricing updated" : "Pricing saved");
     setDialogOpen(false);
 
-    const { data: pricingData } = await supabase.from("vehicle_pricing_config").select("*");
+    const { data: pricingData } = await supabase
+      .from("vehicle_pricing_config")
+      .select("*");
     setPricingRows(pricingData || []);
     resetForm();
+  }
+
+  const confirmDelete = (id) => {
+    setDeleteId(id);
+    setConfirmDialogOpen(true);
+  };
+
+  async function handleConfirmDelete() {
+    if (!deleteId) return;
+    const { error } = await supabase
+      .from("vehicle_pricing_config")
+      .delete()
+      .eq("id", deleteId);
+    if (error) {
+      setErrorMsg("Delete failed: " + error.message);
+      setConfirmDialogOpen(false);
+      return;
+    }
+    setSuccessMsg("Pricing record deleted.");
+    const { data: pricingData } = await supabase
+      .from("vehicle_pricing_config")
+      .select("*");
+    setPricingRows(pricingData || []);
+    setConfirmDialogOpen(false);
+    setDeleteId(null);
   }
 
   const showZoneColumn = pricingRows.some((r) => r.zone_name?.length > 0);
@@ -301,11 +342,16 @@ export default function VehiclePricingTable() {
 
   return (
     <>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mx: 8 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between"}}>
         <Typography variant="h5" gutterBottom>
           Vehicle Pricing Management
         </Typography>
-        <Button variant="contained" color="primary" sx={{ mb: 2 }} onClick={openAddDialog}>
+        <Button
+          variant="contained"
+          color="primary"
+          sx={{ mb: 2 }}
+          onClick={openAddDialog}
+        >
           Add Pricing
         </Button>
       </Box>
@@ -313,11 +359,14 @@ export default function VehiclePricingTable() {
       <Paper sx={{ maxWidth: 1100, margin: "auto", p: 4 }}>
         {!dialogOpen && (
           <>
-            {Object.keys(grouped).length === 0 && <Typography>No pricing found.</Typography>}
+            {Object.keys(grouped).length === 0 && (
+              <Typography>No pricing found.</Typography>
+            )}
             {Object.entries(grouped).map(([category, rows]) => (
               <TableContainer key={category} sx={{ mb: 4 }}>
                 <Typography variant="h6" sx={{ my: 1 }}>
-                  {VEHICLE_CATEGORIES.find((v) => v.value === category)?.label || category}
+                  {VEHICLE_CATEGORIES.find((v) => v.value === category)
+                    ?.label || category}
                 </Typography>
                 <Table size="small">
                   <TableHead>
@@ -335,31 +384,44 @@ export default function VehiclePricingTable() {
                     {rows.map((row) => (
                       <TableRow key={row.id}>
                         <TableCell>
-                          {AC_TYPES.find((a) => a.value === row.ac_type)?.label || row.ac_type}
+                          {AC_TYPES.find((a) => a.value === row.ac_type)
+                            ?.label || row.ac_type}
                         </TableCell>
                         <TableCell>{row.vehicle_price_per_km}</TableCell>
-                        <TableCell>{row.ride_type === "two-way" ? "Two Way" : "One Way"}</TableCell>
+                        <TableCell>
+                          {row.ride_type === "two-way" ? "Two Way" : "One Way"}
+                        </TableCell>
                         {showZoneColumn && (
                           <TableCell>
-                            {Array.isArray(row.zone_name) ? row.zone_name.join(", ") : "—"}
+                            {Array.isArray(row.zone_name)
+                              ? row.zone_name.join(", ")
+                              : "—"}
                           </TableCell>
                         )}
                         {showClustersColumn && (
                           <TableCell>
-                            {Array.isArray(row.clusters) ? row.clusters.join(", ") : "—"}
+                            {Array.isArray(row.clusters)
+                              ? row.clusters.join(", ")
+                              : "—"}
                           </TableCell>
                         )}
                         {showSlabColumn && (
                           <TableCell>
-                            {row.use_slab ? `Slab: ${row.slab_distance} km` : "—"}
+                            {row.use_slab
+                              ? `Slab: ${row.slab_distance} km`
+                              : "—"}
                           </TableCell>
                         )}
                         <TableCell>
-                          <IconButton onClick={() => openEditDialog(row)} aria-label="edit" color="primary">
+                          <IconButton
+                            onClick={() => openEditDialog(row)}
+                            aria-label="edit"
+                            color="primary"
+                          >
                             <EditIcon />
                           </IconButton>
                           <IconButton
-                            onClick={() => handleDelete(row.id)}
+                            onClick={() => confirmDelete(row.id)}
                             aria-label="delete"
                             color="error"
                             sx={{ ml: 1 }}
@@ -390,10 +452,15 @@ export default function VehiclePricingTable() {
                       onChange={(e) => {
                         const checked = e.target.checked;
                         if (checked) {
-                          setSelectedVehicleCategories([...selectedVehicleCategories, cat.value]);
+                          setSelectedVehicleCategories([
+                            ...selectedVehicleCategories,
+                            cat.value,
+                          ]);
                         } else {
                           setSelectedVehicleCategories(
-                            selectedVehicleCategories.filter((v) => v !== cat.value)
+                            selectedVehicleCategories.filter(
+                              (v) => v !== cat.value
+                            )
                           );
                         }
                       }}
@@ -491,7 +558,10 @@ export default function VehiclePricingTable() {
               control={
                 <Checkbox
                   checked={allSelected}
-                  indeterminate={selectedClusters.length > 0 && selectedClusters.length < clusters.length}
+                  indeterminate={
+                    selectedClusters.length > 0 &&
+                    selectedClusters.length < clusters.length
+                  }
                   onChange={handleSelectAllClusters}
                 />
               }
@@ -560,6 +630,27 @@ export default function VehiclePricingTable() {
           </DialogActions>
         </Dialog>
       </Paper>
+      <Dialog
+        open={confirmDialogOpen}
+        onClose={() => setConfirmDialogOpen(false)}
+      >
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this pricing record?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDialogOpen(false)}>Cancel</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={handleConfirmDelete}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

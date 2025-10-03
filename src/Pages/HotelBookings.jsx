@@ -11,6 +11,8 @@ import {
   Paper,
   Chip,
   CircularProgress,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import { supabase } from "../lib/supabase";
 
@@ -26,7 +28,7 @@ export default function HotelBookings() {
   const fetchBookings = async () => {
     setLoading(true);
 
-    // fetch bookings with hotel
+    // fetch bookings with hotel details including check-out time
     const { data: bookingsData, error: bookingError } = await supabase
       .from("hotel_bookings")
       .select(
@@ -41,7 +43,8 @@ export default function HotelBookings() {
         booking_status,
         user_id,
         hotels_model:hotel_id (
-          hotel_name
+          hotel_name,
+          check_out_time
         )
       `
       )
@@ -53,7 +56,7 @@ export default function HotelBookings() {
       return;
     }
 
-    // fetch all profiles
+    // fetch profiles
     const { data: profilesData, error: profileError } = await supabase
       .from("profiles")
       .select("id, userName");
@@ -66,17 +69,52 @@ export default function HotelBookings() {
 
     setProfiles(profilesData);
 
-    // merge bookings with profiles by user_id
-    const merged = bookingsData.map((b) => {
-      const user = profilesData.find((p) => p.id === b.user_id);
-      return {
-        ...b,
-        userName: user ? user.userName : "Unknown",
-      };
-    });
+    // merge profiles and also auto-update completed bookings
+    const merged = await Promise.all(
+      bookingsData.map(async (b) => {
+        const user = profilesData.find((p) => p.id === b.user_id);
+
+        // auto mark as completed if checkout exceeded
+        if (b.booking_status === "booked" || b.booking_status === "confirmed") {
+          const checkoutDateTime = new Date(
+            `${b.checkout_date}T${b.hotels_model?.check_out_time || "12:00:00"}`
+          );
+          if (new Date() > checkoutDateTime) {
+            await supabase
+              .from("hotel_bookings")
+              .update({ booking_status: "completed" })
+              .eq("id", b.id);
+
+            b.booking_status = "completed"; // update locally
+          }
+        }
+
+        return {
+          ...b,
+          userName: user ? user.userName : "Unknown",
+        };
+      })
+    );
 
     setBookings(merged);
     setLoading(false);
+  };
+
+  const handleStatusChange = async (id, newStatus) => {
+    const { error } = await supabase
+      .from("hotel_bookings")
+      .update({ booking_status: newStatus })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating booking status:", error);
+      return;
+    }
+
+    // update local state
+    setBookings((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, booking_status: newStatus } : b))
+    );
   };
 
   return (
@@ -90,16 +128,31 @@ export default function HotelBookings() {
           <CircularProgress />
         </Box>
       ) : (
-        <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: 3 }}>
+        <TableContainer
+          component={Paper}
+          sx={{ borderRadius: 2, boxShadow: 3 }}
+        >
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell><b>User</b></TableCell>
-                <TableCell><b>Hotel</b></TableCell>
-                <TableCell><b>Rooms</b></TableCell>
-                <TableCell><b>Guests</b></TableCell>
-                <TableCell><b>Total Price</b></TableCell>
-                <TableCell><b>Status</b></TableCell>
+                <TableCell>
+                  <b>User</b>
+                </TableCell>
+                <TableCell>
+                  <b>Hotel</b>
+                </TableCell>
+                <TableCell>
+                  <b>Rooms</b>
+                </TableCell>
+                <TableCell>
+                  <b>Guests</b>
+                </TableCell>
+                <TableCell>
+                  <b>Total Price</b>
+                </TableCell>
+                <TableCell>
+                  <b>Status</b>
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -131,16 +184,31 @@ export default function HotelBookings() {
                     </TableCell>
                     <TableCell>₹{b.total_price}</TableCell>
                     <TableCell>
-                      <Chip
-                        label={b.booking_status}
-                        color={
-                          b.booking_status === "confirmed"
-                            ? "success"
-                            : b.booking_status === "cancelled"
-                            ? "error"
-                            : "warning"
-                        }
-                      />
+                      {b.booking_status === "cancelled" ||
+                      b.booking_status === "completed" ? (
+                        <Chip
+                          label={b.booking_status}
+                          color={
+                            b.booking_status === "completed"
+                              ? "success"
+                              : b.booking_status === "cancelled"
+                              ? "error"
+                              : "warning"
+                          }
+                        />
+                      ) : (
+                        <Select
+                          value={b.booking_status}
+                          size="small"
+                          onChange={(e) =>
+                            handleStatusChange(b.id, e.target.value)
+                          }
+                        >
+                          <MenuItem value="booked">Booked</MenuItem>
+                          <MenuItem value="completed">Completed</MenuItem>
+                          <MenuItem value="cancelled">Cancelled</MenuItem>
+                        </Select>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
