@@ -63,52 +63,88 @@ async function fetchZoneClusterFromLatLng(lat, lng, apiKey) {
       `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`
     );
     const data = await res.json();
-    if (data.status !== "OK" || !data.results.length) return null;
+    if (data.status !== "OK" || !data.results.length)
+      return { cluster: null, zone: null };
 
-    let state = null;
+    const comps = data.results[0].address_components;
+
+    // Safely initialize all variables
+    let sublocality = null;
+    let locality = null;
     let district = null;
+    let state = null;
+    let country = null;
 
-    for (const result of data.results) {
-      const components = result.address_components;
+    for (const c of comps) {
+      const types = c.types;
 
-      if (!state) {
-        const stateComp = components.find((c) =>
-          c.types.includes("administrative_area_level_1")
-        );
-        if (stateComp) {
-          state = stateComp.long_name;
-        }
+      if (
+        !sublocality &&
+        types.some((t) =>
+          ["sublocality", "sublocality_level_1", "neighborhood"].includes(t)
+        )
+      ) {
+        sublocality = c.long_name;
       }
 
-      if (!district) {
-        let districtComp = components.find((c) =>
-          c.types.includes("administrative_area_level_2")
-        );
-
-        if (!districtComp) {
-          districtComp = components.find(
-            (c) =>
-              c.types.includes("sublocality_level_1") ||
-              c.types.includes("locality")
-          );
-        }
-        if (districtComp) {
-          district = districtComp.long_name;
-        }
+      if (
+        !locality &&
+        types.some((t) =>
+          ["locality", "administrative_area_level_3"].includes(t)
+        )
+      ) {
+        locality = c.long_name;
       }
-      if (state && district) break;
+
+      if (!district && types.includes("administrative_area_level_2")) {
+        district = c.long_name;
+      }
+
+      if (!state && types.includes("administrative_area_level_1")) {
+        state = c.long_name;
+      }
+
+      if (!country && types.includes("country")) {
+        country = c.long_name;
+      }
     }
 
-    if (state && district) {
-      return `${district} (${state})`;
-    }
-    if (state) {
-      return state;
-    }
-    return null;
+    console.log("📍Resolved:", {
+      sublocality,
+      locality,
+      district,
+      state,
+      country,
+    });
+
+    // Determine best match for cluster and zone
+    // Determine best match for cluster and zone
+    let cluster =
+      sublocality || locality || district || state || country || "Unknown";
+
+    // 👇 improved zone logic
+    let zone = null;
+    if (sublocality && locality) zone = locality;
+    else if (locality && district) zone = district;
+    else if (district) zone = district;
+    else if (locality) zone = locality;
+    else zone = state || country || "Unknown";
+
+    // For debugging
+    console.log("📍Resolved Location:", {
+      sublocality,
+      locality,
+      district,
+      state,
+      country,
+      cluster,
+      zone,
+    });
+
+    return { cluster, zone };
   } catch (error) {
     console.error("Reverse geocode error:", error);
-    return null;
+    return { cluster: null, zone: null };
   }
 }
 
@@ -157,7 +193,7 @@ function calculatePrivatePrice(distance, duration) {
   return totalCost.toFixed(2);
 }
 
-const GOOGLE_MAPS_API_KEY = "AIzaSyA0qsyU5sKAdS_k2g44Nqv5cUjKY8I1zvI";
+const GOOGLE_MAPS_API_KEY = "AIzaSyCZzvtEzsasKJAHjzM-lJi1XlTauDhgqUY";
 
 async function fetchDrivingRoute(points, apiKey) {
   if (points.length < 2) return null;
@@ -236,18 +272,21 @@ function PlaceAutocomplete({ label, value, onSelect, errorMsg, infoMsg }) {
       const place = results[0];
       const { lat, lng } = await getLatLng(place);
 
-      const zoneClusterObj = getClusterZoneForPoint(lat, lng);
-      let zoneInfo = null;
-      if (zoneClusterObj.cluster && zoneClusterObj.zone) {
-        zoneInfo = `${zoneClusterObj.cluster} (${zoneClusterObj.zone})`;
-      } else {
-        const reverseGeo = await fetchZoneClusterFromLatLng(
+      let zoneClusterObj = getClusterZoneForPoint(lat, lng);
+
+      if (!zoneClusterObj.cluster || !zoneClusterObj.zone) {
+        // If not found in predefined clusters, fallback to Google Maps-derived zones
+        zoneClusterObj = await fetchZoneClusterFromLatLng(
           lat,
           lng,
           GOOGLE_MAPS_API_KEY
         );
-        zoneInfo = reverseGeo || "No Zone/Cluster";
       }
+
+      const zoneInfo =
+        zoneClusterObj.cluster && zoneClusterObj.zone
+          ? `${zoneClusterObj.cluster} (${zoneClusterObj.zone})`
+          : "No Zone/Cluster";
 
       onSelect(
         {
@@ -402,13 +441,29 @@ export default function RoutesManager() {
           });
         });
         setSegments(segmentsArr);
-        if (!vehicleType.toLowerCase().includes("private")) {
-          setSharedRates(
-            segmentsArr.map(
-              (seg, idx) =>
-                sharedRates[idx] || { from: seg.from, to: seg.to, rate: "" }
-            )
-          );
+
+        if (vehicleType.toLowerCase().includes("shared")) {
+          // ✅ Use saved rates if editing
+          if (isEditing && editRoute?.pricing) {
+            setSharedRates(
+              segmentsArr.map((seg, idx) => {
+                const savedRate = editRoute.pricing.find(
+                  (p) => p.from === seg.from && p.to === seg.to
+                );
+                return savedRate
+                  ? savedRate
+                  : { from: seg.from, to: seg.to, rate: "" };
+              })
+            );
+          } else {
+            setSharedRates(
+              segmentsArr.map((seg) => ({
+                from: seg.from,
+                to: seg.to,
+                rate: "",
+              }))
+            );
+          }
         }
       } catch {
         setSegments([]);

@@ -41,19 +41,20 @@ export default function Trips() {
         scrollButtons="auto"
       >
         {/* <Tab label="Live Trips" /> */}
-        <Tab label="Add Trip" />
         <Tab label="All Trips" />
+        <Tab label="Add Trip" />
         {/* <Tab label="View Trip" /> */}
       </Tabs>
       {/* <TabPanel value={tabIndex} index={0}>
         <LiveTrips />
       </TabPanel> */}
-      <TabPanel value={tabIndex} index={0}>
-        <AddTrip />
-      </TabPanel>
-      <TabPanel value={tabIndex} index={1}>
+       <TabPanel value={tabIndex} index={0}>
         <AllTrips />
       </TabPanel>
+      <TabPanel value={tabIndex} index={1}>
+        <AddTrip />
+      </TabPanel>
+
       {/* <TabPanel value={tabIndex} index={3}>
         <ViewTrip />
       </TabPanel> */}

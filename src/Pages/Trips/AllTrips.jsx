@@ -24,6 +24,7 @@ import {
   MenuItem,
 } from "@mui/material";
 import { supabase } from "../../lib/supabase";
+import { useNavigate } from "react-router-dom";
 
 export default function AllTrips() {
   // Loading states
@@ -47,6 +48,7 @@ export default function AllTrips() {
   // States for cancel modal
   const [openCancelDialog, setOpenCancelDialog] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const navigate = useNavigate();
 
   // Fetch drivers and all trips on mount
   useEffect(() => {
@@ -84,7 +86,9 @@ export default function AllTrips() {
     setLoadingTrips(true);
     let query = supabase
       .from("trips")
-      .select("id, routeId, departureTime, status, ride_status, seat, userId, vehicleId, vehicleModelId")
+      .select(
+        "id, routeId, departureTime, status, ride_status, seat, userId, vehicleId, vehicleModelId"
+      )
       .order("createdAt", { ascending: false });
     if (driverId) query = query.eq("userId", driverId);
     const { data: tripsData, error } = await query;
@@ -95,7 +99,9 @@ export default function AllTrips() {
     } else {
       setTrips(tripsData || []);
       if (tripsData && tripsData.length > 0) {
-        const uniqueRouteIds = [...new Set(tripsData.map((t) => t.routeId).filter(Boolean))];
+        const uniqueRouteIds = [
+          ...new Set(tripsData.map((t) => t.routeId).filter(Boolean)),
+        ];
         await fetchRoutes(uniqueRouteIds);
       } else {
         setRoutesMap({});
@@ -131,7 +137,9 @@ export default function AllTrips() {
     if (trip.departureTime) {
       const dt = new Date(trip.departureTime);
       const offset = dt.getTimezoneOffset() * 60000;
-      setEditDepartureTime(new Date(dt.getTime() - offset).toISOString().slice(0, 16));
+      setEditDepartureTime(
+        new Date(dt.getTime() - offset).toISOString().slice(0, 16)
+      );
     } else {
       setEditDepartureTime("");
     }
@@ -264,7 +272,7 @@ export default function AllTrips() {
   }
 
   return (
-    <Box sx={{ mx: "auto", }}>
+    <Box sx={{ mx: "auto" }}>
       <Typography variant="h4" gutterBottom>
         All Trips
       </Typography>
@@ -308,7 +316,9 @@ export default function AllTrips() {
               <TableRow sx={{ bgcolor: "primary.light" }}>
                 <TableCell sx={{ fontWeight: "bold" }}>Trip ID</TableCell>
                 <TableCell sx={{ fontWeight: "bold" }}>Route Name</TableCell>
-                <TableCell sx={{ fontWeight: "bold" }}>Departure Time</TableCell>
+                <TableCell sx={{ fontWeight: "bold" }}>
+                  Departure Time
+                </TableCell>
                 <TableCell sx={{ fontWeight: "bold" }}>Status</TableCell>
                 <TableCell sx={{ fontWeight: "bold" }}>Seat</TableCell>
                 <TableCell sx={{ fontWeight: "bold" }}>Actions</TableCell>
@@ -323,9 +333,13 @@ export default function AllTrips() {
                   trip.status === "completed";
                 return (
                   <TableRow key={trip.id} hover>
-                    <TableCell sx={{ wordBreak: "break-word" }}>{trip.id}</TableCell>
                     <TableCell sx={{ wordBreak: "break-word" }}>
-                      {trip.routeId ? routesMap[trip.routeId] || "Loading..." : "-"}
+                      {trip.id}
+                    </TableCell>
+                    <TableCell sx={{ wordBreak: "break-word" }}>
+                      {trip.routeId
+                        ? routesMap[trip.routeId] || "Loading..."
+                        : "-"}
                     </TableCell>
                     <TableCell>
                       {trip.departureTime
@@ -337,6 +351,16 @@ export default function AllTrips() {
                     </TableCell>
                     <TableCell>{trip.seat || "-"}</TableCell>
                     <TableCell>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="primary"
+                        sx={{ mr: 1 }}
+                        onClick={() => navigate(`/view-trip/${trip.id}`)}
+                      >
+                        View
+                      </Button>
+
                       {!isDisabled ? (
                         <>
                           <Button
@@ -357,7 +381,9 @@ export default function AllTrips() {
                           </Button>
                         </>
                       ) : (
-                        <Typography color="textSecondary">Not Editable</Typography>
+                        <Typography color="textSecondary">
+                          Not Editable
+                        </Typography>
                       )}
                     </TableCell>
                   </TableRow>
@@ -428,7 +454,9 @@ export default function AllTrips() {
       >
         <DialogTitle>Cancel Trip</DialogTitle>
         <DialogContent>
-          <Typography>Please enter the cancellation reason for this trip:</Typography>
+          <Typography>
+            Please enter the cancellation reason for this trip:
+          </Typography>
           <TextField
             autoFocus
             margin="dense"
@@ -445,7 +473,11 @@ export default function AllTrips() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenCancelDialog(false)}>Cancel</Button>
-          <Button variant="contained" color="error" onClick={handleConfirmCancel}>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleConfirmCancel}
+          >
             Confirm
           </Button>
         </DialogActions>

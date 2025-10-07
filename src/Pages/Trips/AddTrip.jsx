@@ -27,6 +27,7 @@ export default function AddTrip() {
   const [startTime, setStartTime] = useState("");
   const [tripType, setTripType] = useState("");
   const [farePerSeat, setFarePerSeat] = useState("");
+  const [vehicleNumber, setVehicleNumber] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [maxSeats, setMaxSeats] = useState(null);
@@ -213,6 +214,7 @@ export default function AddTrip() {
         status: "upcoming",
         ride_status: "scheduled",
         current_point_index: 0,
+        vehicle_number: vehicleNumber, 
       },
     ]);
 
@@ -228,6 +230,7 @@ export default function AddTrip() {
       setStartTime("");
       setFarePerSeat("");
       setTripType("");
+      setVehicleNumber("");
     }
 
     setLoading(false);
@@ -343,6 +346,15 @@ export default function AddTrip() {
           ))}
         </Select>
       </FormControl>
+
+      <TextField
+        label="Vehicle Number"
+        value={vehicleNumber}
+        onChange={(e) => setVehicleNumber(e.target.value)}
+        fullWidth
+        sx={{ mt: 2 }}
+        placeholder="Enter vehicle registration number"
+      />
 
       <TextField
         label="Number of Source Seats"

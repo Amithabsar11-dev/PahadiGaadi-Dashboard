@@ -57,6 +57,7 @@ export default function VehicleForm({ onSuccess }) {
   const [imageFiles, setImageFiles] = useState(
     editModel?.image_url ? [{ url: editModel.image_url, file: null }] : []
   );
+  const [vehicleNumber, setVehicleNumber] = useState(editModel?.vehicle_number || "");
   const [loading, setLoading] = useState(false);
 
   // Auto-set category & clear model name when seater range changes

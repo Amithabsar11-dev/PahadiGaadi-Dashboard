@@ -23,6 +23,7 @@ import AddOnsManagement from "../Pages/AddOnsManagement";
 import ZonesClusters from "../Pages/ZonesClusters";
 import VehiclePricingConfig from "../Pages/VehiclePricingConfig";
 import HotelBookings from "../Pages/HotelBookings";
+import ViewTrip from "../Pages/Trips/ViewTrip";
 import { Navigate } from "react-router-dom";
 
 const routes = [
@@ -36,6 +37,7 @@ const routes = [
       { path: "dashboard", element: <Dashboard /> },
       { path: "orders", element: <Orders /> },
       { path: "trips", element: <Trips /> },
+      { path: "view-trip/:tripId", element: <ViewTrip /> },
       { path: "routes", element: <RoutesManager /> },
       { path: "AllRoutes", element: <AllRoutesScreen /> },
       { path: "Addons", element: <AddOnsManagement /> },
