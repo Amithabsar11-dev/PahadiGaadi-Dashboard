@@ -24,6 +24,7 @@ import ZonesClusters from "../Pages/ZonesClusters";
 import VehiclePricingConfig from "../Pages/VehiclePricingConfig";
 import HotelBookings from "../Pages/HotelBookings";
 import ViewTrip from "../Pages/Trips/ViewTrip";
+import Contact from "../Pages/contact";
 import { Navigate } from "react-router-dom";
 
 const routes = [
@@ -57,6 +58,7 @@ const routes = [
       { path: "partner-documents/:id", element: <PartnerDocuments /> },
       { path: "ZonesClusters", element: <ZonesClusters /> },
       { path: "VehiclePricingConfig", element: <VehiclePricingConfig /> },
+      { path: "Contact", element: <Contact /> },
     ],
       },
 ];

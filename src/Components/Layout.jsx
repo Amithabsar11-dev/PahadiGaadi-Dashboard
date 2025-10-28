@@ -37,6 +37,7 @@ const dashboardItems = [
   { title: "Partner Verification", screen: "/partner-verification" },
   { title: "Driver Profiles", screen: "/drivers" },
   { title: "Customer Profiles", screen: "/customers" },
+  { title: "Contact", screen: "/Contact" },
 ];
 
 export default function Layout() {

@@ -72,7 +72,7 @@ const HOTEL_CONFIG = {
   },
 };
 
-const GOOGLE_MAPS_API_KEY = "AIzaSyA0qsyU5sKAdS_k2g44Nqv5cUjKY8I1zvI";
+const GOOGLE_MAPS_API_KEY = "AIzaSyCZzvtEzsasKJAHjzM-lJi1XlTauDhgqUY";
 
 async function fetchZoneClusterFromLatLng(lat, lng) {
   try {
