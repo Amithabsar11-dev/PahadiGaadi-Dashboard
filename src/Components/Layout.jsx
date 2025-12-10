@@ -33,6 +33,7 @@ const dashboardItems = [
   { title: "Hotel Bookings", screen: "/hotelbookings" },
   { title: "Trips", screen: "/trips" },
   { title: "BookingRequests", screen: "/BookingRequests" },
+  { title: "Payment Requests", screen: "/paymentrequests" },
   // { title: "Pricing", screen: "/pricing" },
   { title: "Partner Verification", screen: "/partner-verification" },
   { title: "Driver Profiles", screen: "/drivers" },

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Box,
   TextField,
@@ -16,6 +16,7 @@ import {
   CircularProgress,
   Typography,
   Button,
+  TablePagination,
 } from "@mui/material";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -43,14 +44,20 @@ export default function Orders() {
     category: "",
     vehicle: "all",
     status: "all",
+    payment: "all", // NEW
   });
 
   const [vehicles, setVehicles] = useState([]);
+
+  // Pagination
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
 
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchAll() {
@@ -58,13 +65,13 @@ export default function Orders() {
     let bookingQuery = supabase
       .from("bookings")
       .select(
-        "id, created_at, bookingStatus, pickupCity, dropCity, pickupTime, dropTime, vehicleModel, vehicleType, vehicleNumber, userId, tripId"
+        "id, created_at, bookingStatus, pickupCity, dropCity, pickupTime, dropTime, vehicleModel, vehicleType, vehicleNumber, userId, tripId, paymentMethod"
       )
       .order("created_at", { ascending: false });
 
     // Apply filters if not 'all'
     if (filters.driver !== "all") {
-      // filter by driver: need to join with trips
+      // filter by driver: need to join with trips (handled later in JS filter)
     }
     if (filters.customer !== "all") {
       bookingQuery = bookingQuery.eq("userId", filters.customer);
@@ -74,6 +81,9 @@ export default function Orders() {
     }
     if (filters.status !== "all") {
       bookingQuery = bookingQuery.eq("bookingStatus", filters.status);
+    }
+    if (filters.payment !== "all") {
+      bookingQuery = bookingQuery.eq("paymentMethod", filters.payment);
     }
     if (filters.dateFrom) {
       bookingQuery = bookingQuery.gte("pickupTime", filters.dateFrom);
@@ -151,6 +161,7 @@ export default function Orders() {
 
   const handleFilterChange = (field) => (event) => {
     setFilters((prev) => ({ ...prev, [field]: event.target.value }));
+    setPage(0); // reset to first page when filters change
   };
 
   const handleApplyFilters = () => {
@@ -167,7 +178,9 @@ export default function Orders() {
       cluster: "",
       vehicle: "all",
       status: "all",
+      payment: "all",
     });
+    setPage(0);
     fetchAll();
   };
 
@@ -188,33 +201,50 @@ export default function Orders() {
       const driverId = getDriverIdForBooking(booking);
       if (driverId !== filters.driver) return false;
     }
-    if (filters.customer !== "all" && booking.userId !== filters.customer) return false;
+    if (filters.customer !== "all" && booking.userId !== filters.customer)
+      return false;
     if (filters.dateFrom && booking.pickupTime < filters.dateFrom) return false;
     if (filters.dateTo && booking.pickupTime > filters.dateTo) return false;
     if (filters.zone) {
       if (
         (!booking.pickupCity ||
-          !booking.pickupCity.toLowerCase().includes(filters.zone.toLowerCase())) &&
+          !booking.pickupCity
+            .toLowerCase()
+            .includes(filters.zone.toLowerCase())) &&
         (!booking.dropCity ||
           !booking.dropCity.toLowerCase().includes(filters.zone.toLowerCase()))
       )
         return false;
     }
     if (filters.cluster) {
-      if (!booking.route || !booking.route.toLowerCase().includes(filters.cluster.toLowerCase()))
+      if (
+        !booking.route ||
+        !booking.route.toLowerCase().includes(filters.cluster.toLowerCase())
+      )
         return false;
     }
     if (filters.category) {
       if (
         !booking.vehicleType ||
-        !booking.vehicleType.toLowerCase().includes(filters.category.toLowerCase())
+        !booking.vehicleType
+          .toLowerCase()
+          .includes(filters.category.toLowerCase())
       )
         return false;
     }
-    if (filters.vehicle !== "all" && booking.vehicleType !== filters.vehicle) return false;
-    if (filters.status !== "all" && booking.bookingStatus !== filters.status) return false;
+    if (filters.vehicle !== "all" && booking.vehicleType !== filters.vehicle)
+      return false;
+    if (filters.status !== "all" && booking.bookingStatus !== filters.status)
+      return false;
+    if (filters.payment !== "all" && booking.paymentMethod !== filters.payment)
+      return false;
     return true;
   });
+
+  const paginatedBookings = useMemo(() => {
+    const start = page * rowsPerPage;
+    return filteredBookings.slice(start, start + rowsPerPage);
+  }, [filteredBookings, page, rowsPerPage]);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -314,19 +344,41 @@ export default function Orders() {
               onChange={handleFilterChange("status")}
             >
               <MenuItem value="all">All</MenuItem>
-              <MenuItem value="confirmed">Confirmed</MenuItem>
-              <MenuItem value="pending">Pending</MenuItem>
+              <MenuItem value="upcoming">upcoming</MenuItem>
               <MenuItem value="cancelled">Cancelled</MenuItem>
               <MenuItem value="completed">Completed</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Payment */}
+          <FormControl sx={{ minWidth: 180 }} size="small">
+            <InputLabel id="filter-payment-label">Payment</InputLabel>
+            <Select
+              labelId="filter-payment-label"
+              label="Payment"
+              value={filters.payment}
+              onChange={handleFilterChange("payment")}
+            >
+              <MenuItem value="all">All</MenuItem>
+              <MenuItem value="Cash">Cash</MenuItem>
+              <MenuItem value="UPI">UPI</MenuItem>
             </Select>
           </FormControl>
         </Box>
 
         <Box sx={{ display: "flex", gap: 2 }}>
-          <Button variant="contained" onClick={handleApplyFilters} disabled={loading}>
+          <Button
+            variant="contained"
+            onClick={handleApplyFilters}
+            disabled={loading}
+          >
             Apply Filters
           </Button>
-          <Button variant="outlined" onClick={handleClearFilters} disabled={loading}>
+          <Button
+            variant="outlined"
+            onClick={handleClearFilters}
+            disabled={loading}
+          >
             Clear
           </Button>
         </Box>
@@ -344,11 +396,9 @@ export default function Orders() {
                 <TableCell>Booking ID</TableCell>
                 <TableCell>Customer Name</TableCell>
                 <TableCell>Driver Name</TableCell>
-                {/* <TableCell>Created At</TableCell> */}
                 <TableCell>Pickup City</TableCell>
                 <TableCell>Drop City</TableCell>
                 <TableCell>Pickup Time</TableCell>
-                {/* <TableCell>Drop Time</TableCell> */}
                 <TableCell>Vehicle Model</TableCell>
                 <TableCell>Vehicle Type</TableCell>
                 <TableCell>Status</TableCell>
@@ -362,16 +412,21 @@ export default function Orders() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredBookings.map((order) => (
-                  <TableRow key={order.id} hover sx={{ cursor: "pointer" }} onClick={() => navigate(`/orders/${order.id}`)}>
+                paginatedBookings.map((order) => (
+                  <TableRow
+                    key={order.id}
+                    hover
+                    sx={{ cursor: "pointer" }}
+                    onClick={() => navigate(`/orders/${order.id}`)}
+                  >
                     <TableCell>{order.id}</TableCell>
                     <TableCell>{getCustomerName(order.userId)}</TableCell>
-                    <TableCell>{getDriverName(getDriverIdForBooking(order))}</TableCell>
-                    {/* <TableCell>{formatDate(order.created_at)}</TableCell> */}
+                    <TableCell>
+                      {getDriverName(getDriverIdForBooking(order))}
+                    </TableCell>
                     <TableCell>{order.pickupCity || "-"}</TableCell>
                     <TableCell>{order.dropCity || "-"}</TableCell>
                     <TableCell>{formatDate(order.pickupTime)}</TableCell>
-                    {/* <TableCell>{formatDate(order.dropTime)}</TableCell> */}
                     <TableCell>{order.vehicleModel || "-"}</TableCell>
                     <TableCell>{order.vehicleType || "-"}</TableCell>
                     <TableCell>{order.bookingStatus || "-"}</TableCell>
@@ -380,6 +435,19 @@ export default function Orders() {
               )}
             </TableBody>
           </Table>
+
+          <TablePagination
+            component="div"
+            count={filteredBookings.length}
+            page={page}
+            onPageChange={(e, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+            rowsPerPageOptions={[10, 20, 50, 100]}
+          />
         </TableContainer>
       )}
     </Box>

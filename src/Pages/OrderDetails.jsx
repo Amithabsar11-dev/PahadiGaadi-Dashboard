@@ -7,12 +7,9 @@ import {
   CircularProgress,
   Paper,
   Stack,
-  Divider,
 } from "@mui/material";
 import { Download as DownloadIcon } from "@mui/icons-material";
-import { green } from "@mui/material/colors";
-import { red } from "@mui/material/colors";
-import { amber } from "@mui/material/colors";
+import { green, red, amber } from "@mui/material/colors";
 
 import { supabase } from "../lib/supabase";
 import jsPDF from "jspdf";
@@ -30,6 +27,18 @@ export default function OrderDetails() {
     fetchOrder();
   }, [id]);
 
+  function formatDateTime(dt) {
+    if (!dt) return "-";
+    return new Date(dt).toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  }
+
   async function fetchOrder() {
     setLoading(true);
 
@@ -40,16 +49,16 @@ export default function OrderDetails() {
         .eq("id", id)
         .single();
 
-      if (error || !booking) {
-        throw error || new Error("Order not found");
-      }
+      if (error || !booking) throw error || new Error("Order not found");
 
+      // Fetch customer name + phone
       const { data: cust } = await supabase
         .from("profiles")
-        .select("userName")
+        .select("userName, phone")
         .eq("id", booking.userId)
         .maybeSingle();
 
+      // Fetch driver name + phone
       let drv = null;
       if (booking.tripId) {
         const { data: trip } = await supabase
@@ -57,12 +66,14 @@ export default function OrderDetails() {
           .select("userId")
           .eq("id", booking.tripId)
           .maybeSingle();
+
         if (trip?.userId) {
           const { data: dprof } = await supabase
             .from("driver_profiles")
-            .select("name")
+            .select("name, phone")
             .eq("id", trip.userId)
             .maybeSingle();
+
           drv = dprof;
         }
       }
@@ -85,7 +96,6 @@ export default function OrderDetails() {
     const doc = new jsPDF();
     doc.setFontSize(20);
     doc.text("Order Report", 14, 22);
-    doc.setLineWidth(0.5);
     doc.line(14, 26, 196, 26);
 
     doc.setFontSize(12);
@@ -99,15 +109,17 @@ export default function OrderDetails() {
 
     addLine("Booking ID", order.id);
     addLine("Customer", customer?.userName);
+    addLine("Customer Phone", customer?.phone);
     addLine("Driver", driver?.name);
+    addLine("Driver Phone", driver?.phone);
     addLine("Pickup City", order.pickupCity);
     addLine("Drop City", order.dropCity);
-    addLine("Pickup Time", order.pickupTime);
-    addLine("Drop Time", order.dropTime);
+    addLine("Pickup Time", formatDateTime(order.pickupTime));
     addLine("Vehicle Model", order.vehicleModel);
     addLine("Vehicle Type", order.vehicleType);
     addLine("Status", order.bookingStatus);
-    addLine("Created At", new Date(order.created_at).toLocaleString());
+    addLine("PaymentMethod", order.paymentMethod);
+    addLine("TotalPrice", order.totalPrice);
 
     doc.save(`order_${order.id}.pdf`);
   }
@@ -131,11 +143,11 @@ export default function OrderDetails() {
       </Box>
     );
 
-  // Status color helper
+  // 🔹 Status color helper
   const getStatusColor = () => {
-    if (order.bookingStatus.toLowerCase() === "completed") return green[600];
-    if (order.bookingStatus.toLowerCase() === "cancelled") return red[600];
-    if (order.bookingStatus.toLowerCase() === "pending") return amber[700];
+    if (order.bookingStatus?.toLowerCase() === "completed") return green[600];
+    if (order.bookingStatus?.toLowerCase() === "cancelled") return red[600];
+    if (order.bookingStatus?.toLowerCase() === "upcoming") return amber[700];
     return "text.primary";
   };
 
@@ -150,38 +162,57 @@ export default function OrderDetails() {
           <Typography>
             <strong>Booking ID:</strong> {order.id}
           </Typography>
+
           <Typography>
             <strong>Customer:</strong> {customer?.userName || "-"}
           </Typography>
           <Typography>
+            <strong>Customer Number:</strong> {customer?.phone || "-"}
+          </Typography>
+
+          <Typography>
             <strong>Driver:</strong> {driver?.name || "-"}
           </Typography>
           <Typography>
+           <strong>Driver Number:</strong> {driver?.phone || "-"}
+          </Typography>
+
+          <Typography>
             <strong>Pickup City:</strong> {order.pickupCity}
           </Typography>
+
           <Typography>
             <strong>Drop City:</strong> {order.dropCity}
           </Typography>
+
           <Typography>
-            <strong>Pickup Time:</strong> {order.pickupTime}
+            <strong>Pickup Time:</strong> {formatDateTime(order.pickupTime)}
           </Typography>
-          <Typography>
-            <strong>Drop Time:</strong> {order.dropTime}
-          </Typography>
+
           <Typography>
             <strong>Vehicle Model:</strong> {order.vehicleModel}
           </Typography>
           <Typography>
             <strong>Vehicle Type:</strong> {order.vehicleType}
           </Typography>
+
+          <Typography>
+            <strong>Payment Mode:</strong> {order.paymentMethod || "-"}
+          </Typography>
+
+          <Typography>
+            <strong>Amount:</strong> ₹{order.totalPrice || 0}
+          </Typography>
+
           <Typography>
             <strong>Status:</strong>{" "}
             <Box component="span" sx={{ color: getStatusColor(), fontWeight: "bold" }}>
               {order.bookingStatus}
             </Box>
           </Typography>
+
           <Typography color="text.secondary" variant="caption">
-            Created At: {new Date(order.created_at).toLocaleString()}
+            Created At: {formatDateTime(order.created_at)}
           </Typography>
         </Stack>
       </Paper>
@@ -195,10 +226,6 @@ export default function OrderDetails() {
         >
           Download Report
         </Button>
-        {/* Uncomment if you want WhatsApp share */}
-        {/* <Button variant="outlined" color="success" onClick={shareViaWhatsApp}>
-          Share on WhatsApp
-        </Button> */}
       </Box>
     </Box>
   );

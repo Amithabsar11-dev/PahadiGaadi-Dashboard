@@ -1,6 +1,9 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import routes from "./AppNavigator/routes";
+import { supabase } from "./lib/supabase"; 
+
+window.supabaseClient = supabase;
 
 export default function App() {
   return (
